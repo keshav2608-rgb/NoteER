@@ -118,9 +118,17 @@ export async function POST(request) {
     return response;
   } catch (err) {
     console.error('Google auth error:', err);
+    let hint = null;
+    if (
+      err.message &&
+      (err.message.includes('ENOTFOUND') || err.message.includes('Supabase Direct Host') || err.message.includes('supabase.co'))
+    ) {
+      hint = 'Supabase direct domain is IPv6-only. In Vercel, update DATABASE_URL to use the Supabase Connection Pooler URL (e.g. aws-0-[region].pooler.supabase.com:6543/postgres).';
+    }
     return NextResponse.json({
       error: 'Authentication failed due to internal error',
       details: err.message,
+      hint,
       hasDatabaseUrl: Boolean(process.env.DATABASE_URL)
     }, { status: 500 });
   }

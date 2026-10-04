@@ -68,11 +68,14 @@ export default function LoginPage() {
       if (res.ok) {
         router.push(getRedirectPath());
       } else {
-        setAuthError(data.error || 'Google authentication failed');
+        const errorMsg = data.hint
+          ? `${data.error} — ${data.hint}`
+          : (data.details ? `${data.error} (${data.details})` : (data.error || 'Google authentication failed'));
+        setAuthError(errorMsg);
       }
     } catch (err) {
       console.error('Google sign-in error:', err);
-      setAuthError('Connection error during sign-in');
+      setAuthError('Connection error during sign-in: ' + (err.message || ''));
     }
   };
 
