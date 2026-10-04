@@ -1,9 +1,10 @@
 import assert from 'assert';
 import { WebSocket } from 'ws';
 import { spawn } from 'child_process';
-import { db } from '../lib/db/index.js';
+import { db, toPgQuery } from '../lib/db/index.js';
 import { createSession, signToken } from '../lib/auth/session.js';
-import { generateCollabToken, canEditNotebook, canViewNotebook } from '../lib/auth/permissions.js';
+import { generateCollabToken, canEditNotebook, canViewNotebook, canManageMembers, canDeleteNotebook } from '../lib/auth/permissions.js';
+import { logAuditEvent } from '../lib/auth/audit.js';
 
 console.log('🧪 Starting Collaborative Notebook Vertical Slice & Integration Tests...\n');
 
@@ -315,6 +316,35 @@ async function runTests() {
       });
       tabletWs.on('error', reject);
     });
+  });
+
+  console.log('\n=== Test Suite 6: Security, Sharing Control & Database Translation ===');
+  test('Only notebook creator can control sharing and delete notebook', () => {
+    const notebookId = 'nb_starter_welcome';
+    assert.strictEqual(canManageMembers('usr_demo_owner', notebookId), true, 'Creator can manage members');
+    assert.strictEqual(canDeleteNotebook('usr_demo_owner', notebookId), true, 'Creator can delete notebook');
+    assert.strictEqual(canManageMembers('usr_demo_editor', notebookId), false, 'Editor cannot manage members');
+    assert.strictEqual(canDeleteNotebook('usr_demo_editor', notebookId), false, 'Editor cannot delete notebook');
+    assert.strictEqual(canManageMembers('usr_demo_viewer', notebookId), false, 'Viewer cannot manage members');
+  });
+
+  test('Database query translator converts SQLite placeholders to PostgreSQL syntax', () => {
+    const sql = 'SELECT * FROM users WHERE email = ? AND status = ?';
+    const translated = toPgQuery(sql);
+    assert.strictEqual(translated, 'SELECT * FROM users WHERE email = $1 AND status = $2');
+  });
+
+  await testAsync('Security audit log persists authentication and administrative events', async () => {
+    await logAuditEvent({
+      actorUserId: 'usr_demo_owner',
+      action: 'security_test_event',
+      resourceType: 'notebook',
+      resourceId: 'nb_starter_welcome',
+      metadata: { test: true }
+    });
+
+    const logs = db.query("SELECT * FROM audit_logs WHERE action = 'security_test_event'");
+    assert(logs.length > 0, 'Audit log was successfully recorded');
   });
 
   console.log(`\n==============================================`);

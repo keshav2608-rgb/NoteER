@@ -4,15 +4,15 @@ import { signToken } from '@/lib/auth/session';
 
 export async function POST(request) {
   try {
-    const { code } = await request.json();
-    if (!code) {
+    const { code } = await request.json().catch(() => ({}));
+    if (!code || typeof code !== 'string') {
       return NextResponse.json({ error: 'Pairing code required' }, { status: 400 });
     }
 
     const cleanCode = code.trim().replace(/\s+/g, '-');
     const now = new Date().toISOString();
 
-    const pairing = db.get(`
+    const pairing = await db.get(`
       SELECT * FROM device_pairings
       WHERE pairing_code = ? AND expires_at > ?
     `, [cleanCode, now]);
@@ -22,7 +22,7 @@ export async function POST(request) {
     }
 
     // Mark as paired
-    db.run("UPDATE device_pairings SET status = 'paired' WHERE id = ?", [pairing.id]);
+    await db.run("UPDATE device_pairings SET status = 'paired' WHERE id = ?", [pairing.id]);
 
     // Issue a restricted, canvas-only device token (valid for 24 hours)
     const stylusToken = signToken({
@@ -41,6 +41,7 @@ export async function POST(request) {
       redirectUrl: `/notebook/${pairing.notebook_id}/remote-pad?pairing=${pairing.pairing_code}`
     });
   } catch (err) {
+    console.error('Pairing verify error:', err);
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }

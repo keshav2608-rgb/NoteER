@@ -30,7 +30,7 @@ export async function GET(request) {
   if (!stylusPayload && pairingCode) {
     const cleanCode = pairingCode.trim().replace(/\s+/g, '-');
     const now = new Date().toISOString();
-    const pairing = db.get(`
+    const pairing = await db.get(`
       SELECT id, notebook_id FROM device_pairings
       WHERE pairing_code = ? AND notebook_id = ? AND expires_at > ?
     `, [cleanCode, notebookId, now]);
@@ -71,11 +71,12 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Unauthorized: No active session or valid pairing' }, { status: 401 });
   }
 
-  if (!canViewNotebook(user.id, notebookId)) {
+  const canView = await canViewNotebook(user.id, notebookId);
+  if (!canView) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  const userCollabToken = generateCollabToken(user, notebookId, pageId);
+  const userCollabToken = await generateCollabToken(user, notebookId, pageId);
   if (!userCollabToken) {
     return NextResponse.json({ error: 'Failed to issue collaboration token' }, { status: 403 });
   }

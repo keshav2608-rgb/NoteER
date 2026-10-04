@@ -1,10 +1,50 @@
 import { NextResponse } from 'next/server';
 
-export function middleware(request) {
-  if (process.env.MAINTENANCE_MODE === 'true') {
-    const { pathname } = request.nextUrl;
+// Lightweight in-memory rate limiting map: ip -> { count, resetTime }
+const rateLimitMap = new Map();
 
-    // Allow static assets, internal Next.js files, and the health check probe
+function checkRateLimit(ip, limit = 20, windowMs = 60000) {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip) || { count: 0, resetTime: now + windowMs };
+
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + windowMs;
+    rateLimitMap.set(ip, record);
+    return { allowed: true, remaining: limit - 1, resetIn: windowMs };
+  }
+
+  record.count += 1;
+  rateLimitMap.set(ip, record);
+
+  if (record.count > limit) {
+    return { allowed: false, remaining: 0, resetIn: Math.ceil((record.resetTime - now) / 1000) };
+  }
+
+  return { allowed: true, remaining: limit - record.count, resetIn: Math.ceil((record.resetTime - now) / 1000) };
+}
+
+// Cleanup stale IP entries every 5 minutes
+if (typeof setInterval !== 'undefined') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [key, val] of rateLimitMap.entries()) {
+      if (now > val.resetTime + 60000) {
+        rateLimitMap.delete(key);
+      }
+    }
+  }, 300000);
+}
+
+export function middleware(request) {
+  const { pathname } = request.nextUrl;
+  const ip =
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.ip ||
+    '127.0.0.1';
+
+  // 1. Maintenance Mode
+  if (process.env.MAINTENANCE_MODE === 'true') {
     if (
       pathname.startsWith('/_next') ||
       pathname.startsWith('/api/health') ||
@@ -13,7 +53,6 @@ export function middleware(request) {
       return NextResponse.next();
     }
 
-    // Return a clean, responsive maintenance screen with HTTP 503 Service Unavailable
     return new NextResponse(
       `<!DOCTYPE html>
 <html lang="en">
@@ -85,7 +124,60 @@ export function middleware(request) {
     );
   }
 
-  return NextResponse.next();
+  // 2. Rate Limiting on sensitive routes
+  if (pathname.startsWith('/api/auth/')) {
+    const { allowed, resetIn } = checkRateLimit(`auth_${ip}`, 30, 60000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many authentication attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(resetIn) } }
+      );
+    }
+  }
+
+  if (pathname.startsWith('/api/pairing/verify')) {
+    const { allowed, resetIn } = checkRateLimit(`pairing_${ip}`, 15, 60000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'Too many pairing attempts. Please wait a minute.' },
+        { status: 429, headers: { 'Retry-After': String(resetIn) } }
+      );
+    }
+  }
+
+  // 3. CSRF Protection for API mutations
+  const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
+  if (isMutation && pathname.startsWith('/api/') && !pathname.startsWith('/api/collab/')) {
+    const origin = request.headers.get('origin');
+    const host = request.headers.get('host');
+    if (origin && host) {
+      try {
+        const originHost = new URL(origin).host;
+        // Allow same host, localhost, or deployment domains
+        const isAllowedOrigin =
+          originHost === host ||
+          originHost.includes('localhost') ||
+          originHost.includes('127.0.0.1') ||
+          originHost.endsWith('.vercel.app') ||
+          originHost.endsWith('.onrender.com');
+
+        if (!isAllowedOrigin) {
+          return NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 });
+        }
+      } catch {
+        return NextResponse.json({ error: 'Malformed request origin' }, { status: 400 });
+      }
+    }
+  }
+
+  // 4. Inject Security Headers
+  const response = NextResponse.next();
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  return response;
 }
 
 export const config = {

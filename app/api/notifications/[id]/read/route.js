@@ -9,9 +9,16 @@ export async function POST(request, { params }) {
 
   const now = new Date().toISOString();
   if (id === 'all') {
-    db.run('UPDATE notifications SET read_at = ? WHERE recipient_user_id = ? AND read_at IS NULL', [now, user.id]);
+    await db.run('UPDATE notifications SET read_at = ? WHERE recipient_user_id = ? AND read_at IS NULL', [
+      now,
+      user.id
+    ]);
   } else {
-    db.run('UPDATE notifications SET read_at = ? WHERE id = ? AND recipient_user_id = ?', [now, id, user.id]);
+    await db.run('UPDATE notifications SET read_at = ? WHERE id = ? AND recipient_user_id = ?', [
+      now,
+      id,
+      user.id
+    ]);
   }
 
   return NextResponse.json({ success: true });

@@ -11,7 +11,7 @@ export async function GET() {
   }
 
   // Get unread notification count
-  const unreadNotif = db.get(
+  const unreadNotif = await db.get(
     'SELECT count(*) as count FROM notifications WHERE recipient_user_id = ? AND read_at IS NULL',
     [user.id]
   );
@@ -19,6 +19,6 @@ export async function GET() {
   return NextResponse.json({
     authenticated: true,
     user,
-    unreadNotifications: unreadNotif?.count || 0
+    unreadNotifications: parseInt(unreadNotif?.count || 0, 10)
   });
 }

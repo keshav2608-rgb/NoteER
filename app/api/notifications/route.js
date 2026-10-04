@@ -8,7 +8,7 @@ export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const notifications = db.query(`
+  const notifications = await db.query(`
     SELECT n.*, u.name as actor_name, u.avatar_url as actor_avatar
     FROM notifications n
     LEFT JOIN users u ON n.actor_user_id = u.id
@@ -17,7 +17,7 @@ export async function GET() {
     LIMIT 30
   `, [user.id]);
 
-  const unreadCount = notifications.filter(n => !n.read_at).length;
+  const unreadCount = (notifications || []).filter((n) => !n.read_at).length;
 
   return NextResponse.json({ notifications, unreadCount });
 }

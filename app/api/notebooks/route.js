@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/session';
 import db from '@/lib/db';
+import { logAuditEvent } from '@/lib/auth/audit';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -9,7 +10,7 @@ export async function GET() {
   }
 
   // Get owned notebooks and shared notebooks
-  const notebooks = db.query(`
+  const notebooks = await db.query(`
     SELECT DISTINCT n.*, 
       u.name as owner_name, 
       u.email as owner_email,
@@ -34,8 +35,10 @@ export async function POST(request) {
   }
 
   const body = await request.json().catch(() => ({}));
-  const title = (body.title || 'Untitled Notebook').trim();
-  const description = (body.description || '').trim();
+  const rawTitle = typeof body.title === 'string' ? body.title.trim() : '';
+  const title = (rawTitle || 'Untitled Notebook').substring(0, 120);
+  const rawDesc = typeof body.description === 'string' ? body.description.trim() : '';
+  const description = rawDesc.substring(0, 600);
   const visibility = body.visibility === 'shared' ? 'shared' : 'private';
 
   const notebookId = 'nb_' + Math.random().toString(36).substring(2, 10);
@@ -43,30 +46,33 @@ export async function POST(request) {
   const now = new Date().toISOString();
 
   // Create notebook
-  db.run(`
+  await db.run(`
     INSERT INTO notebooks (id, owner_id, title, description, visibility, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `, [notebookId, user.id, title, description, visibility, now, now]);
 
   // Add owner to members
-  db.run(`
+  await db.run(`
     INSERT INTO notebook_members (id, notebook_id, user_id, role, created_at, updated_at)
     VALUES (?, ?, ?, 'owner', ?, ?)
   `, ['mem_' + Math.random().toString(36).substring(2, 10), notebookId, user.id, now, now]);
 
   // Create default first page
-  db.run(`
+  await db.run(`
     INSERT INTO pages (id, notebook_id, title, sort_order, background_type, created_at, updated_at)
     VALUES (?, ?, 'Page 1', 0, 'blank', ?, ?)
   `, [pageId, notebookId, now, now]);
 
   // Create audit log
-  db.run(`
-    INSERT INTO audit_logs (id, actor_user_id, action, resource_type, resource_id, created_at)
-    VALUES (?, ?, 'create_notebook', 'notebook', ?, ?)
-  `, ['log_' + Math.random().toString(36).substring(2, 10), user.id, notebookId, now]);
+  await logAuditEvent({
+    actorUserId: user.id,
+    action: 'create_notebook',
+    resourceType: 'notebook',
+    resourceId: notebookId,
+    metadata: { title, visibility }
+  });
 
-  const created = db.get('SELECT * FROM notebooks WHERE id = ?', [notebookId]);
+  const created = await db.get('SELECT * FROM notebooks WHERE id = ?', [notebookId]);
 
   return NextResponse.json({ notebook: created, firstPageId: pageId });
 }

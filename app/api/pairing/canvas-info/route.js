@@ -30,7 +30,7 @@ export async function GET(request) {
     if (!isValid && pairingCode) {
       const cleanCode = pairingCode.trim().replace(/\s+/g, '-');
       const now = new Date().toISOString();
-      const pairing = db.get(`
+      const pairing = await db.get(`
         SELECT id, notebook_id FROM device_pairings
         WHERE pairing_code = ? AND notebook_id = ? AND expires_at > ?
       `, [cleanCode, notebookId, now]);
@@ -44,12 +44,12 @@ export async function GET(request) {
     }
 
     // Return strictly minimal canvas metadata — zero personal or sensitive user data
-    const notebook = db.get('SELECT id, title FROM notebooks WHERE id = ? AND deleted_at IS NULL', [notebookId]);
+    const notebook = await db.get('SELECT id, title FROM notebooks WHERE id = ? AND deleted_at IS NULL', [notebookId]);
     if (!notebook) {
       return NextResponse.json({ error: 'Notebook not found' }, { status: 404 });
     }
 
-    const pages = db.query(`
+    const pages = await db.query(`
       SELECT id, title, sort_order, background_type FROM pages
       WHERE notebook_id = ? AND deleted_at IS NULL
       ORDER BY sort_order ASC, created_at ASC
