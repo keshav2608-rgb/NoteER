@@ -7,7 +7,7 @@ RUN npm ci --omit=dev
 
 COPY collab-server ./collab-server
 COPY lib ./lib
-COPY data ./data
+RUN mkdir -p /app/data
 
 ENV COLLAB_PORT 1234
 EXPOSE 1234

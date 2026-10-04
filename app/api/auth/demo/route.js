@@ -3,6 +3,11 @@ import db from '@/lib/db';
 import { createSession, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 
 export async function POST(request) {
+  const isDemoAllowed = process.env.NODE_ENV !== 'production' || process.env.ENABLE_DEMO_AUTH === 'true';
+  if (!isDemoAllowed) {
+    return NextResponse.json({ error: 'Demo authentication is disabled in production' }, { status: 403 });
+  }
+
   try {
     const body = await request.json().catch(() => ({}));
     const { userId, customName } = body;

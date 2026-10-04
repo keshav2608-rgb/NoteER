@@ -28,7 +28,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prod-server.js ./prod-server.js
 COPY --from=builder /app/collab-server ./collab-server
 COPY --from=builder /app/lib ./lib
-COPY --from=builder /app/data ./data
+RUN mkdir -p /app/data
 
 EXPOSE 3000
 
