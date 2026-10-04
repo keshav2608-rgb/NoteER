@@ -1,6 +1,7 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Script from 'next/script';
 import {
   BookOpen,
   Tablet,
@@ -21,38 +22,109 @@ export default function LoginPage() {
   const [pairingError, setPairingError] = useState('');
   const [pairingLoading, setPairingLoading] = useState(false);
 
-  // Initialize Google Identity Services if client ID is configured
+  // Dynamic Google Auth & Demo config state
+  const [googleClientId, setGoogleClientId] = useState(process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '');
+  const [isDemoEnabled, setIsDemoEnabled] = useState(
+    process.env.NEXT_PUBLIC_ENABLE_DEMO === 'true' ||
+    (process.env.NEXT_PUBLIC_ENABLE_DEMO !== 'false' && process.env.NODE_ENV !== 'production')
+  );
+  const [googleRendered, setGoogleRendered] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  const googleBtnRef = useRef(null);
+
+  // Fetch dynamic runtime config from server to prevent build-time inlining issues
   useEffect(() => {
-    const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (googleClientId && window.google?.accounts?.id) {
-      window.google.accounts.id.initialize({
-        client_id: googleClientId,
-        callback: handleGoogleCredential
+    fetch('/api/auth/config')
+      .then((res) => res.json())
+      .then((cfg) => {
+        if (cfg.googleClientId) {
+          setGoogleClientId(cfg.googleClientId);
+        }
+        if (typeof cfg.isDemoEnabled === 'boolean') {
+          setIsDemoEnabled(cfg.isDemoEnabled);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch auth config:', err);
       });
-      window.google.accounts.id.renderButton(
-        document.getElementById('googleSignInBtn'),
-        { theme: 'outline', size: 'large', width: '100%' }
-      );
-    }
   }, []);
 
+  const getRedirectPath = () => {
+    if (typeof window === 'undefined') return '/dashboard';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('redirect') || '/dashboard';
+  };
+
   const handleGoogleCredential = async (response) => {
+    setAuthError('');
     try {
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credential: response.credential })
       });
+      const data = await res.json();
       if (res.ok) {
-        router.push('/dashboard');
+        router.push(getRedirectPath());
+      } else {
+        setAuthError(data.error || 'Google authentication failed');
       }
     } catch (err) {
       console.error('Google sign-in error:', err);
+      setAuthError('Connection error during sign-in');
     }
   };
 
+  const renderGoogleButton = useCallback((clientIdOverride) => {
+    const idToUse = clientIdOverride || googleClientId;
+    if (!idToUse || !googleBtnRef.current) return false;
+
+    if (window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: idToUse,
+          callback: handleGoogleCredential
+        });
+
+        googleBtnRef.current.innerHTML = '';
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: 'outline',
+          size: 'large',
+          width: 320,
+          shape: 'rectangular',
+          text: 'signin_with'
+        });
+        setGoogleRendered(true);
+        return true;
+      } catch (err) {
+        console.error('Error rendering Google button:', err);
+        return false;
+      }
+    }
+    return false;
+  }, [googleClientId]);
+
+  // Robust retry mechanism: polls every 100ms for up to 5s until Google script loads
+  useEffect(() => {
+    if (!googleClientId) return;
+
+    if (renderGoogleButton(googleClientId)) return;
+
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (renderGoogleButton(googleClientId) || attempts > 50) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [googleClientId, renderGoogleButton]);
+
   const handleDemoLogin = async (userId, name) => {
     setLoadingUser(userId || name);
+    setAuthError('');
     try {
       const res = await fetch('/api/auth/demo', {
         method: 'POST',
@@ -60,10 +132,14 @@ export default function LoginPage() {
         body: JSON.stringify({ userId, customName: name })
       });
       if (res.ok) {
-        router.push('/dashboard');
+        router.push(getRedirectPath());
+      } else {
+        const data = await res.json();
+        setAuthError(data.error || 'Demo login failed');
       }
     } catch (err) {
       console.error('Demo login error:', err);
+      setAuthError('Demo login connection failed');
     } finally {
       setLoadingUser('');
     }
@@ -96,13 +172,14 @@ export default function LoginPage() {
     }
   };
 
-  const isDemoEnabled =
-    process.env.NEXT_PUBLIC_ENABLE_DEMO === 'true' ||
-    (process.env.NEXT_PUBLIC_ENABLE_DEMO !== 'false' && process.env.NODE_ENV !== 'production');
-  const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/40">
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={() => renderGoogleButton()}
+      />
+
       <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
         
         {/* Left Side: Product Branding & Visuals */}
@@ -162,21 +239,38 @@ export default function LoginPage() {
               <p className="text-xs text-slate-500 mt-1">Select an identity or pair as a drawing device</p>
             </div>
 
-            {/* Google Sign-In Container */}
-            <div id="googleSignInBtn" className="w-full"></div>
+            {authError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+                {authError}
+              </div>
+            )}
 
-            {/* Production notice when Google auth is not configured and demo profiles are off */}
-            {!googleClientId && !isDemoEnabled && (
+            {/* Google Sign-In Container */}
+            {googleClientId ? (
+              <div className="flex flex-col items-center justify-center w-full min-h-[44px]">
+                {!googleRendered && (
+                  <div className="w-full max-w-[320px] h-11 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center gap-2 text-xs text-slate-500">
+                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Connecting to Google...</span>
+                  </div>
+                )}
+                <div
+                  ref={googleBtnRef}
+                  id="googleSignInBtn"
+                  className={`w-full flex justify-center ${!googleRendered ? 'hidden' : ''}`}
+                ></div>
+              </div>
+            ) : !isDemoEnabled ? (
               <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed space-y-1">
                 <div className="font-semibold text-amber-950 flex items-center gap-1.5">
                   <Shield className="w-3.5 h-3.5 text-amber-700" />
                   <span>Production Authentication Mode</span>
                 </div>
                 <p className="text-[11px] text-amber-800">
-                  Demo profiles are disabled in production. Configure <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> for Google Sign-In, or connect via Tablet PIN pairing below.
+                  Google Sign-In is awaiting configuration. Set <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your Vercel Environment Variables, or connect via Tablet PIN pairing below.
                 </p>
               </div>
-            )}
+            ) : null}
 
             {isDemoEnabled && (
               <>

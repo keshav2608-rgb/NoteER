@@ -42,19 +42,26 @@ export default function DashboardPage() {
       // 1. Get current user
       const meRes = await fetch('/api/auth/me');
       const meData = await meRes.json();
-      if (!meData.authenticated) {
-        return router.push('/login');
+      if (!meData.authenticated || !meData.user) {
+        router.replace('/login');
+        return;
       }
       setUser(meData.user);
 
       // 2. Get notebooks
       const nbRes = await fetch('/api/notebooks');
-      const nbData = await nbRes.json();
+      if (!nbRes.ok) {
+        if (nbRes.status === 401) {
+          router.replace('/login');
+          return;
+        }
+      }
+      const nbData = await nbRes.json().catch(() => ({}));
       setNotebooks(nbData.notebooks || []);
+      setLoading(false);
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
-    } finally {
-      setLoading(false);
+      router.replace('/login');
     }
   };
 
@@ -147,7 +154,7 @@ export default function DashboardPage() {
     return true;
   });
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>

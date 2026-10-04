@@ -145,6 +145,19 @@ export function middleware(request) {
     }
   }
 
+  // 3. Server-Side Route Protection for Dashboard & Notebooks
+  const isDashboardRoute = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  const isNotebookRoute = pathname.startsWith('/notebook/') && !pathname.includes('/remote-pad');
+
+  if (isDashboardRoute || isNotebookRoute) {
+    const sessionCookie = request.cookies.get('notebook_session_token')?.value;
+    if (!sessionCookie) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
   // 3. CSRF Protection for API mutations
   const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
   if (isMutation && pathname.startsWith('/api/') && !pathname.startsWith('/api/collab/')) {

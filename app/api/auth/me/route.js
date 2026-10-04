@@ -1,13 +1,16 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth/session';
+import { getCurrentUser, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import db from '@/lib/db';
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ authenticated: false, user: null });
+    const response = NextResponse.json({ authenticated: false, user: null });
+    // Explicitly delete any stale or invalidated session cookie
+    response.cookies.delete(SESSION_COOKIE_NAME);
+    return response;
   }
 
   // Get unread notification count
