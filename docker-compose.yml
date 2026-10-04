@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  collab:
+    build:
+      context: .
+      dockerfile: Dockerfile.collab
+    container_name: notebook_collab
+    restart: always
+    ports:
+      - "1234:1234"
+    environment:
+      NODE_ENV: production
+      COLLAB_PORT: 1234
+      JWT_SECRET: ${JWT_SECRET:-super-secret-notebook-key-dev-38914820}
+    volumes:
+      - notebook_data:/app/data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notebook_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      COLLAB_PORT: 1234
+      NEXT_PUBLIC_COLLAB_WS_URL: ${NEXT_PUBLIC_COLLAB_WS_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-super-secret-notebook-key-dev-38914820}
+    volumes:
+      - notebook_data:/app/data
+    depends_on:
+      - collab
+
+volumes:
+  notebook_data:
+

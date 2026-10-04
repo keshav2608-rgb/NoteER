@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: notebook_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    depends_on:
+      - web
+      - collab
+
+  collab:
+    build:
+      context: .
+      dockerfile: Dockerfile.collab
+    container_name: notebook_collab
+    restart: always
+    environment:
+      NODE_ENV: production
+      COLLAB_PORT: 1234
+      JWT_SECRET: ${JWT_SECRET:-super-secret-notebook-key-dev-38914820}
+    volumes:
+      - notebook_data:/app/data
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: notebook_web
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      COLLAB_PORT: 1234
+      NEXT_PUBLIC_COLLAB_WS_URL: wss://${DOMAIN:-localhost}/collab-ws
+      JWT_SECRET: ${JWT_SECRET:-super-secret-notebook-key-dev-38914820}
+    volumes:
+      - notebook_data:/app/data
+    depends_on:
+      - collab
+
+volumes:
+  notebook_data:
+  caddy_data:
+  caddy_config:

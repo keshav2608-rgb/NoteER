@@ -1,0 +1,14 @@
+# Caddyfile for Collaborative Notebook
+# Set DOMAIN environment variable or replace with your domain (e.g., notebook.example.com)
+
+{$DOMAIN:localhost} {
+    # WebSocket route for real-time collaboration
+    handle /collab-ws* {
+        reverse_proxy collab:1234
+    }
+
+    # Next.js web application
+    handle {
+        reverse_proxy web:3000
+    }
+}
