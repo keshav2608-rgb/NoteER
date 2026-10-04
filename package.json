@@ -4,6 +4,9 @@
   "description": "Production-ready collaborative digital notebook with multi-device PC + tablet drawing pad",
   "type": "module",
   "private": true,
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "node scripts/start-dev.js",
     "dev:next": "next dev -H 0.0.0.0 -p 3000",

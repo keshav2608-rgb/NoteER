@@ -1,15 +1,32 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { DatabaseSync } from 'node:sqlite';
 
 let db = null;
 
+function resolveDataDir() {
+  const localDataDir = path.join(process.cwd(), 'data');
+  try {
+    if (!fs.existsSync(localDataDir)) {
+      fs.mkdirSync(localDataDir, { recursive: true });
+    }
+    const probe = path.join(localDataDir, '.probe_write');
+    fs.writeFileSync(probe, 'ok');
+    fs.unlinkSync(probe);
+    return localDataDir;
+  } catch {
+    const tmpDataDir = path.join(os.tmpdir(), 'notev1-data');
+    if (!fs.existsSync(tmpDataDir)) {
+      fs.mkdirSync(tmpDataDir, { recursive: true });
+    }
+    return tmpDataDir;
+  }
+}
+
 function getDb() {
   if (!db) {
-    const dataDir = path.join(process.cwd(), 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
+    const dataDir = resolveDataDir();
     const dbPath = path.join(dataDir, 'notebook.db');
     db = new DatabaseSync(dbPath);
     db.exec(`
