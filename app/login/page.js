@@ -13,6 +13,7 @@ import {
   Users,
   QrCode
 } from 'lucide-react';
+import ThemeToggle from '@/components/theme/ThemeToggle';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -176,14 +177,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/40">
+    <div className="min-h-screen w-full flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-gradient-to-br from-slate-50 via-indigo-50/30 to-blue-50/40 dark:from-slate-950 dark:via-slate-900 dark:to-indigo-950/40 text-slate-900 dark:text-slate-100 relative">
+      {/* Floating Theme Toggle (top-right) */}
+      <div className="fixed top-4 right-4 z-40">
+        <ThemeToggle />
+      </div>
+
       <Script
         src="https://accounts.google.com/gsi/client"
         strategy="afterInteractive"
         onLoad={() => renderGoogleButton()}
       />
 
-      <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
+      <div className="max-w-4xl w-full my-auto my-6 grid grid-cols-1 md:grid-cols-2 bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
         
         {/* Left Side: Product Branding & Visuals */}
         <div className="p-8 md:p-12 bg-slate-900 text-white flex flex-col justify-between relative overflow-hidden">
@@ -235,15 +241,15 @@ export default function LoginPage() {
         </div>
 
         {/* Right Side: Auth / Instant Testing Profiles */}
-        <div className="p-8 md:p-12 flex flex-col justify-between">
+        <div className="p-6 sm:p-8 md:p-12 flex flex-col justify-between bg-white dark:bg-slate-900">
           <div className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Sign in to your notebook</h2>
-              <p className="text-xs text-slate-500 mt-1">Select an identity or pair as a drawing device</p>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Sign in to your notebook</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select an identity or pair as a drawing device</p>
             </div>
 
             {authError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium">
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-medium">
                 {authError}
               </div>
             )}
@@ -252,7 +258,7 @@ export default function LoginPage() {
             {googleClientId ? (
               <div className="flex flex-col items-center justify-center w-full min-h-[44px]">
                 {!googleRendered && (
-                  <div className="w-full max-w-[320px] h-11 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center gap-2 text-xs text-slate-500">
+                  <div className="w-full max-w-[320px] h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
                     <span>Connecting to Google...</span>
                   </div>
@@ -264,13 +270,13 @@ export default function LoginPage() {
                 ></div>
               </div>
             ) : !isDemoEnabled ? (
-              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed space-y-1">
-                <div className="font-semibold text-amber-950 flex items-center gap-1.5">
-                  <Shield className="w-3.5 h-3.5 text-amber-700" />
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 text-xs leading-relaxed space-y-1">
+                <div className="font-semibold text-amber-950 dark:text-amber-100 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />
                   <span>Production Authentication Mode</span>
                 </div>
-                <p className="text-[11px] text-amber-800">
-                  Google Sign-In is awaiting configuration. Set <code className="bg-amber-100 px-1 py-0.5 rounded font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your Vercel Environment Variables, or connect via Tablet PIN pairing below.
+                <p className="text-[11px] text-amber-800 dark:text-amber-300">
+                  Google Sign-In is awaiting configuration. Set <code className="bg-amber-100 dark:bg-amber-900/60 px-1 py-0.5 rounded font-mono">NEXT_PUBLIC_GOOGLE_CLIENT_ID</code> in your Vercel Environment Variables, or connect via Tablet PIN pairing below.
                 </p>
               </div>
             ) : null}
@@ -278,8 +284,8 @@ export default function LoginPage() {
             {isDemoEnabled && (
               <>
                 <div className="relative flex items-center justify-center">
-                  <div className="border-t border-slate-200 w-full"></div>
-                  <span className="bg-white px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 absolute">
+                  <div className="border-t border-slate-200 dark:border-slate-800 w-full"></div>
+                  <span className="bg-white dark:bg-slate-900 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 absolute">
                     Instant Demo Profiles
                   </span>
                 </div>
@@ -290,17 +296,17 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => handleDemoLogin('usr_demo_owner')}
                     disabled={Boolean(loadingUser)}
-                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 transition-all text-left group"
+                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-slate-800/80 transition-all text-left group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
                         K
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-800 group-hover:text-indigo-900">
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-indigo-900 dark:group-hover:text-indigo-400">
                           Keshav (Owner)
                         </div>
-                        <div className="text-[11px] text-slate-500">keshav@notebook.local • Full edit & share</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">keshav@notebook.local • Full edit & share</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all" />
@@ -310,17 +316,17 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => handleDemoLogin('usr_demo_editor')}
                     disabled={Boolean(loadingUser)}
-                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 transition-all text-left group"
+                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-slate-800/80 transition-all text-left group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
                         A
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-900">
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-emerald-900 dark:group-hover:text-emerald-400">
                           Alex Rivera (Editor)
                         </div>
-                        <div className="text-[11px] text-slate-500">alex@notebook.local • Collaborative drawing</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">alex@notebook.local • Collaborative drawing</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
@@ -330,17 +336,17 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => handleDemoLogin('usr_demo_viewer')}
                     disabled={Boolean(loadingUser)}
-                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 transition-all text-left group"
+                    className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-indigo-50/40 dark:hover:bg-slate-800/80 transition-all text-left group"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-amber-600 text-white font-bold text-xs flex items-center justify-center shadow-xs">
                         S
                       </div>
                       <div>
-                        <div className="text-xs font-bold text-slate-800 group-hover:text-amber-900">
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-amber-900 dark:group-hover:text-amber-400">
                           Sam Chen (Viewer)
                         </div>
-                        <div className="text-[11px] text-slate-500">sam@notebook.local • Read-only observer</div>
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400">sam@notebook.local • Read-only observer</div>
                       </div>
                     </div>
                     <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
@@ -354,13 +360,13 @@ export default function LoginPage() {
                     value={customName}
                     onChange={(e) => setCustomName(e.target.value)}
                     placeholder="Or enter custom guest name..."
-                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
                   />
                   <button
                     type="button"
                     onClick={() => customName.trim() && handleDemoLogin(null, customName.trim())}
                     disabled={!customName.trim() || Boolean(loadingUser)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold disabled:opacity-40 transition-colors"
+                    className="px-3 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 text-white rounded-xl text-xs font-semibold disabled:opacity-40 transition-colors"
                   >
                     Join
                   </button>
@@ -369,10 +375,10 @@ export default function LoginPage() {
             )}
 
             {/* Tablet Pairing Code Box */}
-            <div className="pt-4 border-t border-slate-100">
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
               <form onSubmit={handlePairingSubmit} className="flex flex-col gap-2">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                  <QrCode className="w-3.5 h-3.5 text-indigo-600" />
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <QrCode className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>Connect Tablet with 6-Digit PIN</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -382,7 +388,7 @@ export default function LoginPage() {
                     onChange={(e) => setPairingCode(e.target.value)}
                     placeholder="e.g. 748-291"
                     maxLength={10}
-                    className="flex-1 px-3 py-2 text-xs font-mono font-bold tracking-widest text-center uppercase rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50"
+                    className="flex-1 px-3 py-2 text-xs font-mono font-bold tracking-widest text-center uppercase rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-indigo-500 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white"
                   />
                   <button
                     type="submit"
@@ -392,13 +398,13 @@ export default function LoginPage() {
                     {pairingLoading ? 'Connecting...' : 'Pair Pad'}
                   </button>
                 </div>
-                {pairingError && <div className="text-[11px] text-rose-500 font-medium">{pairingError}</div>}
+                {pairingError && <div className="text-[11px] text-rose-500 dark:text-rose-400 font-medium">{pairingError}</div>}
               </form>
             </div>
           </div>
 
           {isDemoEnabled && (
-            <div className="pt-6 text-center text-[11px] text-slate-400">
+            <div className="pt-6 text-center text-[11px] text-slate-400 dark:text-slate-500">
               Open in multiple windows to simulate real-time collaboration.
             </div>
           )}

@@ -49,9 +49,9 @@ export default function PageNavigation({
   ];
 
   return (
-    <div className="flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-200/90 shadow-sm">
+    <div className="flex items-center gap-1.5 sm:gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm text-slate-700 dark:text-slate-300">
       {/* Pages Tabs */}
-      <div className="flex items-center gap-1 overflow-x-auto max-w-md no-scrollbar">
+      <div className="flex items-center gap-1 overflow-x-auto max-w-[160px] sm:max-w-xs md:max-w-md no-scrollbar">
         {pages.map((p) => {
           const isActive = p.id === activePageId;
           const isEditing = editingTitleId === p.id;
@@ -60,10 +60,10 @@ export default function PageNavigation({
             <div
               key={p.id}
               onClick={() => onSelectPage(p.id)}
-              className={`group relative flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-medium cursor-pointer transition-all ${
+              className={`group relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-xl text-xs font-medium cursor-pointer transition-all ${
                 isActive
-                  ? 'bg-indigo-50 text-indigo-700 shadow-xs border border-indigo-200/80'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 shadow-xs border border-indigo-200/80 dark:border-indigo-800/60'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               {isEditing ? (
@@ -74,13 +74,13 @@ export default function PageNavigation({
                   onChange={(e) => setTempTitle(e.target.value)}
                   onBlur={() => handleFinishRename(p.id)}
                   onKeyDown={(e) => e.key === 'Enter' && handleFinishRename(p.id)}
-                  className="bg-white border border-indigo-300 rounded px-1.5 py-0.5 text-xs text-indigo-900 w-24 focus:outline-none"
+                  className="bg-white dark:bg-slate-800 border border-indigo-300 dark:border-indigo-600 rounded px-1.5 py-0.5 text-xs text-indigo-900 dark:text-white w-24 focus:outline-none"
                 />
               ) : (
                 <span
                   onDoubleClick={(e) => canEdit && handleStartRename(p, e)}
                   title="Double click to rename"
-                  className="truncate max-w-[110px]"
+                  className="truncate max-w-[90px] sm:max-w-[110px]"
                 >
                   {p.title}
                 </span>
@@ -94,7 +94,7 @@ export default function PageNavigation({
                     if (confirm(`Delete ${p.title}?`)) onDeletePage(p.id);
                   }}
                   title="Delete page"
-                  className="opacity-0 group-hover:opacity-100 hover:text-rose-600 p-0.5 rounded transition-opacity"
+                  className="opacity-0 group-hover:opacity-100 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 rounded transition-opacity"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -110,28 +110,28 @@ export default function PageNavigation({
           type="button"
           onClick={onCreatePage}
           title="Add New Page"
-          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-700 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors border border-dashed border-slate-300"
+          className="flex items-center gap-1 px-2 sm:px-2.5 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 rounded-xl transition-colors border border-dashed border-slate-300 dark:border-slate-700"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>New Page</span>
+          <span className="hidden sm:inline">New Page</span>
         </button>
       )}
 
       {/* Background Style Selector */}
       {canEdit && activePage && (
-        <div className="relative pl-1.5 border-l border-slate-200">
+        <div className="relative pl-1.5 border-l border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setShowBgMenu(!showBgMenu)}
             title="Page paper style"
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg"
+            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
           >
             <span className="capitalize">{activePage.background_type || 'Dotted'}</span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
 
           {showBgMenu && (
-            <div className="absolute bottom-full mb-2 right-0 bg-white border border-slate-200 rounded-xl p-1.5 shadow-sheet w-36 flex flex-col gap-0.5 z-40 animate-in fade-in zoom-in-95">
+            <div className="absolute bottom-full mb-2 right-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-sheet w-36 flex flex-col gap-0.5 z-40 animate-in fade-in zoom-in-95">
               {backgrounds.map((bg) => (
                 <button
                   key={bg.type}
@@ -142,8 +142,8 @@ export default function PageNavigation({
                   }}
                   className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activePage.background_type === bg.type
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-slate-700 hover:bg-slate-50'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   {bg.icon}
