@@ -118,6 +118,10 @@ export async function POST(request) {
     return response;
   } catch (err) {
     console.error('Google auth error:', err);
-    return NextResponse.json({ error: 'Authentication failed due to internal error' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Authentication failed due to internal error',
+      details: err.message,
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL)
+    }, { status: 500 });
   }
 }
