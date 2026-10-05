@@ -14,11 +14,13 @@ export async function POST(request) {
 
     const pairing = await db.get(`
       SELECT * FROM device_pairings
-      WHERE pairing_code = ? AND expires_at > ?
+      WHERE pairing_code = ? AND expires_at > ? AND status NOT IN ('closed', 'superseded')
     `, [cleanCode, now]);
 
     if (!pairing) {
-      return NextResponse.json({ error: 'Invalid or expired pairing code' }, { status: 404 });
+      return NextResponse.json({
+        error: 'Pairing code is expired, invalid, or the notebook session is no longer active.'
+      }, { status: 404 });
     }
 
     // Mark as paired

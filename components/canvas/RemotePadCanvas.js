@@ -231,6 +231,23 @@ export default function RemotePadCanvas({
     showToast('View Reset (100%)');
   };
 
+  // Non-passive wheel event handling
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const handleWheel = (e) => {
+      if (e.cancelable) e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        const factor = e.deltaY < 0 ? 1.08 : 0.92;
+        setZoom(prev => Math.min(Math.max(Number((prev * factor).toFixed(2)), 0.25), 4.0));
+      } else {
+        setPan(prev => ({ x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
+      }
+    };
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
+
   // Resize canvas
   const resizeCanvas = useCallback(() => {
     const container = containerRef.current;
@@ -644,7 +661,7 @@ export default function RemotePadCanvas({
             opacity: 1
           };
           shapeStartRef.current = null;
-          setUndoStack((prev) => [...prev, { type: 'shape:delete', shapeId: shape.id }]);
+          setUndoStack((prev) => [...prev, { type: 'shape:delete', shapeId: shape.id, shape }]);
           setRedoStack([]);
           onSendOp({ type: 'shape:add', shape });
           vibrate(8);
@@ -656,16 +673,18 @@ export default function RemotePadCanvas({
     // Commit freehand stroke
     if (currentPointsRef.current.length > 0) {
       const simplified = simplifyPoints(currentPointsRef.current, 1.2);
+      const isHighlighter = tool === 'highlighter';
+      const effectiveWidth = isHighlighter ? Math.max(strokeWidth, 16) : strokeWidth;
       const stroke = {
         id: 'strk_' + Math.random().toString(36).substring(2, 10),
         tool,
         points: simplified,
         color,
-        width: strokeWidth,
-        opacity: tool === 'highlighter' ? 0.35 : 1
+        width: effectiveWidth,
+        opacity: isHighlighter ? 0.35 : 1
       };
       currentPointsRef.current = [];
-      setUndoStack((prev) => [...prev, { type: 'stroke:erase', strokeId: stroke.id }]);
+      setUndoStack((prev) => [...prev, { type: 'stroke:erase', strokeId: stroke.id, stroke }]);
       setRedoStack([]);
       onSendOp({ type: 'stroke:add', stroke });
       vibrate(8);
@@ -718,11 +737,21 @@ export default function RemotePadCanvas({
     setUndoStack([...undoStack, lastOp]);
 
     if (lastOp.type === 'stroke:erase') {
-      const stroke = documentState.strokes?.find(s => s.id === lastOp.strokeId);
+      const stroke = lastOp.stroke || documentState.strokes?.find(s => s.id === lastOp.strokeId);
       if (stroke) onSendOp({ type: 'stroke:add', stroke });
     } else if (lastOp.type === 'shape:delete') {
-      const shape = documentState.shapes?.find(s => s.id === lastOp.shapeId);
+      const shape = lastOp.shape || documentState.shapes?.find(s => s.id === lastOp.shapeId);
       if (shape) onSendOp({ type: 'shape:add', shape });
+    } else if (lastOp.type === 'stroke:add') {
+      if (lastOp.stroke?.id || lastOp.strokeId) {
+        onSendOp({ type: 'stroke:erase', strokeId: lastOp.stroke?.id || lastOp.strokeId });
+      }
+    } else if (lastOp.type === 'shape:add') {
+      if (lastOp.shape?.id || lastOp.shapeId) {
+        onSendOp({ type: 'shape:delete', shapeId: lastOp.shape?.id || lastOp.shapeId });
+      }
+    } else {
+      onSendOp(lastOp);
     }
     showToast('Redo');
   };

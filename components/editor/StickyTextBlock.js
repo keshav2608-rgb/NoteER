@@ -44,6 +44,7 @@ export default function StickyTextBlock({ block, onUpdate, onDelete, zoom, panX,
 
   return (
     <div
+      onPointerDown={(e) => e.stopPropagation()}
       className={`absolute z-10 rounded-xl shadow-sheet border transition-shadow ${
         isDragging ? 'shadow-2xl ring-2 ring-indigo-500 cursor-grabbing' : 'hover:shadow-md'
       }`}

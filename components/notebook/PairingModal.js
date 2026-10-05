@@ -7,32 +7,31 @@ import {
   Copy,
   Check,
   X,
-  Sparkles,
-  Smartphone,
-  ExternalLink
+  RotateCw,
+  ExternalLink,
+  ShieldCheck,
+  Radio
 } from 'lucide-react';
 
 export default function PairingModal({ notebookId, isOpen, onClose }) {
   const [pairingData, setPairingData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-  const [selectedIp, setSelectedIp] = useState('');
-  const [showNetworkSettings, setShowNetworkSettings] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
   const { tabletConnected } = useNotebookStore();
 
-  const fetchPairing = (ipOverride = '') => {
+  const fetchPairing = () => {
     setLoading(true);
-    const url = ipOverride
-      ? `/api/notebooks/${notebookId}/pairing?ip=${encodeURIComponent(ipOverride)}`
-      : `/api/notebooks/${notebookId}/pairing`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
 
-    fetch(url, { method: 'POST' })
+    fetch(`/api/notebooks/${notebookId}/pairing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin })
+    })
       .then((res) => res.json())
       .then((data) => {
         setPairingData(data);
-        if (data.resolvedIp && !ipOverride) {
-          setSelectedIp(data.resolvedIp);
-        }
         setLoading(false);
       })
       .catch((err) => {
@@ -51,13 +50,15 @@ export default function PairingModal({ notebookId, isOpen, onClose }) {
   const handleCopyLink = () => {
     if (!pairingData?.targetUrl) return;
     navigator.clipboard.writeText(pairingData.targetUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  const handleIpChange = (ip) => {
-    setSelectedIp(ip);
-    fetchPairing(ip);
+  const handleCopyCode = () => {
+    if (!pairingData?.pairingCode) return;
+    navigator.clipboard.writeText(pairingData.pairingCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   return (
@@ -72,7 +73,7 @@ export default function PairingModal({ notebookId, isOpen, onClose }) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">Connect Drawing Tablet</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Live multi-device canvas synchronization</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Scan QR code or use the 6-digit code</p>
             </div>
           </div>
           <button
@@ -86,95 +87,62 @@ export default function PairingModal({ notebookId, isOpen, onClose }) {
 
         {/* Live Tablet Status Banner */}
         {tabletConnected ? (
-          <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-emerald-800 dark:text-emerald-200">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></div>
+          <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-emerald-800 dark:text-emerald-200 animate-in fade-in">
+            <div className="relative flex items-center justify-center">
+              <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+              <div className="absolute w-3 h-3 rounded-full bg-emerald-500 animate-ping"></div>
+            </div>
             <div className="text-xs font-semibold">Tablet is actively connected and synchronized!</div>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex items-center gap-2 px-3 py-2 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 rounded-xl text-indigo-700 dark:text-indigo-300 text-xs">
+            <Radio className="w-3.5 h-3.5 animate-pulse text-indigo-500" />
+            <span>Ready for connection • Open camera on your tablet to scan</span>
+          </div>
+        )}
 
         {/* QR Code & Code Display */}
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3">
             <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Generating secure pairing session...</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Generating live pairing session...</p>
           </div>
         ) : pairingData ? (
-          <div className="flex flex-col items-center gap-3">
-            {/* QR Image */}
-            <div className="p-3 bg-white rounded-2xl shadow-inner border border-slate-200 dark:border-slate-700">
+          <div className="flex flex-col items-center gap-3.5">
+            {/* QR Image Card */}
+            <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col items-center">
               {pairingData.qrCodeDataUrl ? (
                 <img
                   src={pairingData.qrCodeDataUrl}
                   alt="Scan QR code with tablet"
-                  className="w-48 h-48 rounded-xl object-contain"
+                  className="w-52 h-52 rounded-xl object-contain"
                 />
               ) : (
-                <div className="w-48 h-48 flex items-center justify-center text-slate-400">
+                <div className="w-52 h-52 flex items-center justify-center text-slate-400">
                   <QrCode className="w-16 h-16" />
                 </div>
               )}
             </div>
 
-            {/* Direct URL Preview */}
-            <div className="w-full text-center px-2">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono break-all select-all bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 py-1 px-2.5 rounded-lg inline-block">
-                {pairingData.targetUrl}
+            {/* Numeric PIN with Quick Copy */}
+            <div className="flex flex-col items-center gap-1.5 w-full">
+              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                Or enter pairing code on tablet
               </span>
-            </div>
-
-            {/* Numeric PIN */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Or enter 6-digit code on tablet
-              </span>
-              <div className="text-2xl font-mono font-bold tracking-widest text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-4 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                {pairingData.pairingCode}
-              </div>
-            </div>
-
-            {/* Network / IP Selector */}
-            {pairingData.detectedIps && pairingData.detectedIps.length > 0 && (
-              <div className="w-full">
+              <div className="flex items-center gap-2">
+                <div className="text-2xl font-mono font-bold tracking-widest text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-4 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                  {pairingData.pairingCode}
+                </div>
                 <button
                   type="button"
-                  onClick={() => setShowNetworkSettings(!showNetworkSettings)}
-                  className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium flex items-center justify-center gap-1 w-full text-center py-1"
+                  onClick={handleCopyCode}
+                  title="Copy Code"
+                  className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
                 >
-                  <span>{showNetworkSettings ? 'Hide Network IP Settings' : `Connected via IP: ${pairingData.resolvedIp || 'auto'}`}</span>
+                  {copiedCode ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
                 </button>
-
-                {showNetworkSettings && (
-                  <div className="mt-2 p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col gap-2 text-xs">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Select Laptop IP Address:</span>
-                    <div className="flex flex-col gap-1.5">
-                      {pairingData.detectedIps.map((cand) => (
-                        <label
-                          key={cand.address}
-                          className={`flex items-center justify-between p-2 rounded-lg cursor-pointer border transition-colors ${
-                            selectedIp === cand.address
-                              ? 'bg-indigo-50 dark:bg-indigo-950/60 border-indigo-300 dark:border-indigo-600 text-indigo-900 dark:text-indigo-200 font-medium'
-                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="radio"
-                              name="networkIp"
-                              value={cand.address}
-                              checked={selectedIp === cand.address}
-                              onChange={() => handleIpChange(cand.address)}
-                              className="text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <span>{cand.name}</span>
-                          </div>
-                          <span className="font-mono text-[11px]">{cand.address}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            )}
+            </div>
 
             {/* Direct Link Actions */}
             <div className="w-full flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -183,8 +151,8 @@ export default function PairingModal({ notebookId, isOpen, onClose }) {
                 onClick={handleCopyLink}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-semibold transition-colors"
               >
-                {copied ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                <span>{copied ? 'Link Copied to Clipboard!' : 'Copy Direct Tablet URL'}</span>
+                {copiedLink ? <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedLink ? 'Link Copied to Clipboard!' : 'Copy Direct Link'}</span>
               </button>
 
               <a
@@ -196,6 +164,15 @@ export default function PairingModal({ notebookId, isOpen, onClose }) {
               >
                 <ExternalLink className="w-4 h-4" />
               </a>
+
+              <button
+                type="button"
+                onClick={fetchPairing}
+                className="p-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl transition-colors"
+                title="Generate new pairing code"
+              >
+                <RotateCw className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ) : (
@@ -204,14 +181,10 @@ export default function PairingModal({ notebookId, isOpen, onClose }) {
           </div>
         )}
 
-        {/* Troubleshooting Guide */}
-        <div className="p-3 bg-amber-50/60 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/60 rounded-2xl text-[11px] text-amber-900 dark:text-amber-200 leading-relaxed flex flex-col gap-1">
-          <span className="font-semibold text-amber-950 dark:text-amber-100">Taking too long to connect? Check these 3 things:</span>
-          <ul className="list-disc pl-4 space-y-0.5 text-amber-800 dark:text-amber-300">
-            <li>Ensure the tablet is connected to the exact same Wi-Fi network as the laptop.</li>
-            <li>Make sure the development server (<code className="bg-amber-100 dark:bg-amber-900/60 px-1 py-0.5 rounded font-mono">npm run dev:all</code>) is currently running.</li>
-            <li>If using a phone mobile hotspot, ensure both laptop and tablet are connected to that hotspot.</li>
-          </ul>
+        {/* Ephemeral Session Notice */}
+        <div className="flex items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-2xl text-[11px] text-slate-600 dark:text-slate-300">
+          <ShieldCheck className="w-4 h-4 text-indigo-500 shrink-0" />
+          <span>This pairing code is strictly temporary and stays active only while this notebook is open.</span>
         </div>
       </div>
     </div>

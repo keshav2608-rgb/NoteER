@@ -26,53 +26,61 @@ export async function POST(request, { params }) {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 15 * 60 * 1000).toISOString(); // 15 mins
 
-  // Store pairing code
+  // Invalidate any older pending pairing codes for this notebook and user
+  await db.run(
+    "UPDATE device_pairings SET status = 'superseded' WHERE notebook_id = ? AND user_id = ? AND status = 'pending'",
+    [notebookId, user.id]
+  );
+
+  // Store new pairing code
   await db.run(`
     INSERT INTO device_pairings (id, notebook_id, user_id, pairing_code, target_device_name, status, expires_at, created_at)
     VALUES (?, ?, ?, ?, 'Desktop PC', 'pending', ?, ?)
   `, [pairingId, notebookId, user.id, pairingCode, expiresAt, now.toISOString()]);
 
-  // Allow client to request a specific IP override if desired
-  let requestedIp = null;
+  // Read optional client origin sent from Desktop PC browser
+  let clientOrigin = null;
   try {
-    const url = new URL(request.url);
-    requestedIp = url.searchParams.get('ip');
-    if (!requestedIp && request.headers.get('content-type')?.includes('application/json')) {
+    if (request.headers.get('content-type')?.includes('application/json')) {
       const body = await request.json().catch(() => ({}));
-      if (body.ip) requestedIp = body.ip;
+      if (body.origin) clientOrigin = body.origin;
     }
-  } catch (e) {
-    // Ignore error parsing custom ip
-  }
+  } catch (_) {}
 
-  const detectedIps = getLanIpCandidates();
-  const selectedIp = requestedIp || getLanIpAddress();
-
-  // Construct URL for tablet
+  // Determine protocol: default to http unless explicitly running on https
+  let protocol = 'http';
   let host = request.headers.get('host') || 'localhost:3000';
-  const port = host.split(':')[1] || '3000';
 
-  if (selectedIp) {
-    host = `${selectedIp}:${port}`;
-  } else if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) {
-    const lanIp = getLanIpAddress();
-    if (lanIp) {
-      host = `${lanIp}:${port}`;
-    }
+  if (clientOrigin) {
+    try {
+      const u = new URL(clientOrigin);
+      protocol = u.protocol.replace(':', '');
+      host = u.host;
+    } catch (_) {}
+  } else if (request.headers.get('x-forwarded-proto') === 'https') {
+    protocol = 'https';
   }
 
-  const protocol = host.includes('localhost')
-    ? 'http'
-    : request.headers.get('x-forwarded-proto') || 'https';
-  const targetUrl = `${protocol}://${host}/notebook/${notebookId}/remote-pad?pairing=${pairingCode}`;
+  // Tablets cannot reach "localhost" or "127.0.0.1" of the laptop, so resolve LAN IP
+  const hostParts = host.split(':');
+  const hostname = hostParts[0];
+  const port = hostParts[1] || (protocol === 'https' ? '443' : '3000');
+
+  let tabletHost = host;
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '0.0.0.0') {
+    const lanIp = getLanIpAddress();
+    tabletHost = port ? `${lanIp}:${port}` : lanIp;
+  }
+
+  const targetUrl = `${protocol}://${tabletHost}/notebook/${notebookId}/remote-pad?pairing=${pairingCode}`;
 
   let qrCodeDataUrl = '';
   try {
     qrCodeDataUrl = await QRCode.toDataURL(targetUrl, {
-      width: 280,
+      width: 320,
       margin: 2,
       color: {
-        dark: '#1e293b',
+        dark: '#0f172a',
         light: '#ffffff'
       }
     });
@@ -84,8 +92,6 @@ export async function POST(request, { params }) {
     pairingCode,
     targetUrl,
     qrCodeDataUrl,
-    expiresAt,
-    resolvedIp: selectedIp,
-    detectedIps
+    expiresAt
   });
 }

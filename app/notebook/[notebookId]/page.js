@@ -150,26 +150,74 @@ function NotebookEditorSession({
     isTablet: false
   });
 
+  // Deactivate pairing sessions when notebook unloads or user leaves
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(`/api/notebooks/${notebookId}/pairing/deactivate`);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        navigator.sendBeacon(`/api/notebooks/${notebookId}/pairing/deactivate`);
+      } else {
+        fetch(`/api/notebooks/${notebookId}/pairing/deactivate`, { method: 'POST', keepalive: true }).catch(() => {});
+      }
+    };
+  }, [notebookId]);
+
   // Undo / Redo handlers
-  const handleUndo = () => {
+  const handleUndo = useCallback(() => {
     const op = popUndo();
     if (op) {
       sendOp(op);
     }
-  };
+  }, [popUndo, sendOp]);
 
-  const handleRedo = () => {
+  const handleRedo = useCallback(() => {
     const op = popRedo();
     if (op) {
       if (op.type === 'stroke:erase') {
-        const stroke = documentState.strokes?.find((s) => s.id === op.strokeId);
+        const stroke = op.stroke || documentState.strokes?.find((s) => s.id === op.strokeId);
         if (stroke) sendOp({ type: 'stroke:add', stroke });
       } else if (op.type === 'shape:delete') {
-        const shape = documentState.shapes?.find((s) => s.id === op.shapeId);
+        const shape = op.shape || documentState.shapes?.find((s) => s.id === op.shapeId);
         if (shape) sendOp({ type: 'shape:add', shape });
+      } else if (op.type === 'stroke:add') {
+        if (op.stroke?.id || op.strokeId) {
+          sendOp({ type: 'stroke:erase', strokeId: op.stroke?.id || op.strokeId });
+        }
+      } else if (op.type === 'shape:add') {
+        if (op.shape?.id || op.shapeId) {
+          sendOp({ type: 'shape:delete', shapeId: op.shape?.id || op.shapeId });
+        }
+      } else {
+        sendOp(op);
       }
     }
-  };
+  }, [popRedo, documentState, sendOp]);
+
+  // Keyboard shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z)
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
 
   const handleClearCanvas = () => {
     if (confirm('Clear all strokes and shapes on this page?')) {

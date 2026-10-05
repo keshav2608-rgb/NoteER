@@ -209,6 +209,39 @@ export default function DrawingCanvas({
     ctx.restore();
   }
 
+  const activePointersRef = useRef(new Map());
+  const pinchStartRef = useRef(null);
+  const zoomRef = useRef(zoom);
+  const panRef = useRef({ x: panX, y: panY });
+  zoomRef.current = zoom;
+  panRef.current = { x: panX, y: panY };
+
+  // Non-passive wheel listener for smooth zoom & pan without console passive listener warnings
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheelListener = (e) => {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      if (e.ctrlKey || e.metaKey) {
+        // Zoom
+        const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+        const newZoom = Math.min(Math.max(zoomRef.current * zoomFactor, 0.25), 4.0);
+        setZoom(newZoom);
+      } else {
+        // Pan
+        setPan(panRef.current.x - e.deltaX, panRef.current.y - e.deltaY);
+      }
+    };
+
+    container.addEventListener('wheel', handleWheelListener, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheelListener);
+    };
+  }, [setZoom, setPan]);
+
   // Pointer Down
   const handlePointerDown = (e) => {
     const container = containerRef.current;
@@ -216,6 +249,41 @@ export default function DrawingCanvas({
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
+
+    activePointersRef.current.set(e.pointerId, { x: screenX, y: screenY });
+
+    // Multi-touch pinch zoom & two-finger pan
+    if (activePointersRef.current.size === 2) {
+      isDrawingRef.current = false;
+      currentPointsRef.current = [];
+      shapeStartRef.current = null;
+      panStartRef.current = null;
+
+      const draftCanvas = draftCanvasRef.current;
+      if (draftCanvas) {
+        const ctx = draftCanvas.getContext('2d');
+        ctx.clearRect(0, 0, draftCanvas.width, draftCanvas.height);
+      }
+
+      const pts = Array.from(activePointersRef.current.values());
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      pinchStartRef.current = {
+        distance: dist,
+        initialZoom: zoomRef.current,
+        initialPan: { ...panRef.current },
+        midX: (pts[0].x + pts[1].x) / 2,
+        midY: (pts[0].y + pts[1].y) / 2
+      };
+      return;
+    }
+
+    if (activePointersRef.current.size > 2) return;
+
+    // Capture pointer so drawing continues smoothly even if cursor briefly exits container
+    try {
+      e.target.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
+
     const world = screenToWorld(screenX, screenY, zoom, panX, panY);
 
     // Pan mode or spacebar pressed
@@ -270,6 +338,31 @@ export default function DrawingCanvas({
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
+
+    if (activePointersRef.current.has(e.pointerId)) {
+      activePointersRef.current.set(e.pointerId, { x: screenX, y: screenY });
+    }
+
+    // Handle 2-finger pinch zoom & pan
+    if (activePointersRef.current.size === 2 && pinchStartRef.current) {
+      const pts = Array.from(activePointersRef.current.values());
+      const newDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      const ratio = newDist / (pinchStartRef.current.distance || 1);
+      const newZoom = Math.min(Math.max(Number((pinchStartRef.current.initialZoom * ratio).toFixed(2)), 0.25), 4.0);
+
+      const newMidX = (pts[0].x + pts[1].x) / 2;
+      const newMidY = (pts[0].y + pts[1].y) / 2;
+      const dx = newMidX - pinchStartRef.current.midX;
+      const dy = newMidY - pinchStartRef.current.midY;
+
+      setZoom(newZoom);
+      setPan(
+        pinchStartRef.current.initialPan.x + dx,
+        pinchStartRef.current.initialPan.y + dy
+      );
+      return;
+    }
+
     const world = screenToWorld(screenX, screenY, zoom, panX, panY);
 
     // Send throttled cursor to peers
@@ -308,6 +401,13 @@ export default function DrawingCanvas({
 
   // Pointer Up
   const handlePointerUp = (e) => {
+    if (e && e.pointerId) {
+      activePointersRef.current.delete(e.pointerId);
+    }
+    if (activePointersRef.current.size < 2) {
+      pinchStartRef.current = null;
+    }
+
     if (panStartRef.current) {
       panStartRef.current = null;
       return;
@@ -344,7 +444,7 @@ export default function DrawingCanvas({
           opacity,
           fillColor
         };
-        pushUndo({ type: 'shape:delete', shapeId: shape.id });
+        pushUndo({ type: 'shape:delete', shapeId: shape.id, shape });
         onSendOp({ type: 'shape:add', shape });
       }
       shapeStartRef.current = null;
@@ -354,16 +454,20 @@ export default function DrawingCanvas({
     // Commit freehand stroke
     if (currentPointsRef.current.length > 0) {
       const simplified = simplifyPoints(currentPointsRef.current, 1.2);
+      const isHighlighter = tool === 'highlighter';
+      const effectiveWidth = isHighlighter ? Math.max(strokeWidth, 18) : strokeWidth;
+      const effectiveOpacity = isHighlighter ? 0.35 : opacity;
+
       const stroke = {
         id: 'strk_' + Math.random().toString(36).substring(2, 10),
         tool,
         points: simplified,
         color,
-        width: strokeWidth,
-        opacity
+        width: effectiveWidth,
+        opacity: effectiveOpacity
       };
       currentPointsRef.current = [];
-      pushUndo({ type: 'stroke:erase', strokeId: stroke.id });
+      pushUndo({ type: 'stroke:erase', strokeId: stroke.id, stroke });
       onSendOp({ type: 'stroke:add', stroke });
     }
   };
@@ -382,12 +486,16 @@ export default function DrawingCanvas({
     ctx.translate(panX, panY);
     ctx.scale(zoom, zoom);
 
+    const isHighlighter = tool === 'highlighter';
+    const effectiveWidth = isHighlighter ? Math.max(strokeWidth, 18) : strokeWidth;
+    const effectiveOpacity = isHighlighter ? 0.35 : opacity;
+
     renderStroke(ctx, {
       tool,
       points: currentPointsRef.current,
       color,
-      width: strokeWidth,
-      opacity
+      width: effectiveWidth,
+      opacity: effectiveOpacity
     });
 
     ctx.restore();
@@ -422,12 +530,15 @@ export default function DrawingCanvas({
     ctx.restore();
   };
 
-  // Eraser collision check
+  // Eraser collision check with zoom compensation
   const handleEraserAt = (worldX, worldY) => {
+    const hitThreshold = 18 / zoom;
+
     // Check strokes
     if (documentState.strokes) {
       for (const stroke of documentState.strokes) {
-        if (hitTestStroke(stroke, worldX, worldY, 14)) {
+        if (hitTestStroke(stroke, worldX, worldY, hitThreshold)) {
+          pushUndo({ type: 'stroke:add', stroke });
           onSendOp({ type: 'stroke:erase', strokeId: stroke.id });
           return;
         }
@@ -438,6 +549,7 @@ export default function DrawingCanvas({
     if (documentState.shapes) {
       for (const shape of documentState.shapes) {
         if (hitTestShape(shape, worldX, worldY)) {
+          pushUndo({ type: 'shape:add', shape });
           onSendOp({ type: 'shape:delete', shapeId: shape.id });
           return;
         }
@@ -445,28 +557,14 @@ export default function DrawingCanvas({
     }
   };
 
-  // Mouse wheel pan & zoom
-  const handleWheel = (e) => {
-    e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
-      // Zoom
-      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-      const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.25), 4.0);
-      setZoom(newZoom);
-    } else {
-      // Pan
-      setPan(panX - e.deltaX, panY - e.deltaY);
-    }
-  };
-
   return (
     <div
       ref={containerRef}
-      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       className={`relative w-full h-full overflow-hidden select-none touch-none ${
         tool === 'pan' || spacePressedRef.current ? 'cursor-grab active:cursor-grabbing' :
         tool === 'eraser' ? 'cursor-crosshair' :

@@ -49,12 +49,27 @@ class Room {
 
     // Broadcast user join to others
     this.broadcastAwareness();
+    this.checkDesktopStatus();
   }
 
   removeClient(ws) {
     this.clients.delete(ws);
     this.awareness.delete(ws.clientId);
     this.broadcastAwareness();
+    this.checkDesktopStatus();
+  }
+
+  checkDesktopStatus() {
+    const hasDesktop = Array.from(this.clients).some(c => !c.isTablet);
+    const msg = JSON.stringify({
+      type: 'host:status',
+      hostActive: hasDesktop
+    });
+    for (const client of this.clients) {
+      if (client.isTablet && client.readyState === 1) {
+        client.send(msg);
+      }
+    }
   }
 
   updateAwareness(clientId, cursorData) {

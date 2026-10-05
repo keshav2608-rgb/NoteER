@@ -22,7 +22,17 @@ export async function GET(request) {
     if (token) {
       const payload = verifyToken(token);
       if (payload && payload.scope === 'canvas_only' && payload.notebookId === notebookId) {
-        isValid = true;
+        if (payload.pairingId) {
+          const pairingRow = await db.get(
+            "SELECT status FROM device_pairings WHERE id = ?",
+            [payload.pairingId]
+          );
+          if (pairingRow && pairingRow.status !== 'closed') {
+            isValid = true;
+          }
+        } else {
+          isValid = true;
+        }
       }
     }
 
@@ -32,7 +42,7 @@ export async function GET(request) {
       const now = new Date().toISOString();
       const pairing = await db.get(`
         SELECT id, notebook_id FROM device_pairings
-        WHERE pairing_code = ? AND notebook_id = ? AND expires_at > ?
+        WHERE pairing_code = ? AND notebook_id = ? AND expires_at > ? AND status NOT IN ('closed', 'superseded')
       `, [cleanCode, notebookId, now]);
       if (pairing) {
         isValid = true;
@@ -40,7 +50,9 @@ export async function GET(request) {
     }
 
     if (!isValid) {
-      return NextResponse.json({ error: 'Unauthorized: Canvas pairing is invalid or expired' }, { status: 401 });
+      return NextResponse.json({
+        error: 'Unauthorized: Canvas pairing is invalid, expired, or the notebook session was closed'
+      }, { status: 401 });
     }
 
     // Return strictly minimal canvas metadata — zero personal or sensitive user data

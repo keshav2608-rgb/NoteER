@@ -23,7 +23,17 @@ export async function GET(request) {
   if (token) {
     const payload = verifyToken(token);
     if (payload && payload.scope === 'canvas_only' && payload.notebookId === notebookId) {
-      stylusPayload = payload;
+      if (payload.pairingId) {
+        const pairingRow = await db.get(
+          "SELECT status FROM device_pairings WHERE id = ?",
+          [payload.pairingId]
+        );
+        if (pairingRow && pairingRow.status !== 'closed') {
+          stylusPayload = payload;
+        }
+      } else {
+        stylusPayload = payload;
+      }
     }
   }
 
@@ -32,12 +42,20 @@ export async function GET(request) {
     const now = new Date().toISOString();
     const pairing = await db.get(`
       SELECT id, notebook_id FROM device_pairings
-      WHERE pairing_code = ? AND notebook_id = ? AND expires_at > ?
+      WHERE pairing_code = ? AND notebook_id = ? AND expires_at > ? AND status NOT IN ('closed', 'superseded')
     `, [cleanCode, notebookId, now]);
     if (pairing) {
       stylusPayload = { pairingId: pairing.id, notebookId: pairing.notebook_id };
     }
   }
+
+  // Helper to determine optimal WS URL
+  const reqHost = request.headers.get('host') || 'localhost:3000';
+  const hostname = reqHost.split(':')[0];
+  const isHttps = request.headers.get('x-forwarded-proto') === 'https';
+  const wsProtocol = isHttps ? 'wss:' : 'ws:';
+  const collabPort = process.env.COLLAB_PORT || '1234';
+  const resolvedWsUrl = process.env.NEXT_PUBLIC_COLLAB_WS_URL || `${wsProtocol}//${hostname}:${collabPort}`;
 
   if (stylusPayload) {
     // Generate a restricted, scoped collaboration token
@@ -61,6 +79,7 @@ export async function GET(request) {
         name: 'Tablet Stylus',
         avatar: ''
       },
+      wsUrl: resolvedWsUrl,
       isCanvasOnly: true
     });
   }
@@ -88,6 +107,7 @@ export async function GET(request) {
       name: user.name,
       avatar: user.avatar_url
     },
+    wsUrl: resolvedWsUrl,
     isCanvasOnly: false
   });
 }
