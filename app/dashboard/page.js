@@ -98,12 +98,15 @@ export default function DashboardPage() {
 
   const handleDeleteNotebook = async (id, title, e) => {
     e.stopPropagation();
-    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
+    if (!confirm(`Are you sure you want to permanently delete "${title}" from the database? All pages, drawings, notes, snapshots, and collaborators will be deleted forever.`)) return;
 
     try {
-      const res = await fetch(`/api/notebooks/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/notebooks/${id}?permanent=true`, { method: 'DELETE' });
       if (res.ok) {
         setNotebooks(notebooks.filter((n) => n.id !== id));
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to delete notebook');
       }
     } catch (err) {
       console.error('Failed to delete notebook:', err);

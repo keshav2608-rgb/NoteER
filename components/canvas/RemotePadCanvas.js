@@ -104,6 +104,7 @@ export default function RemotePadCanvas({
   onCreatePage,
   syncStatus = 'saved',
   isCanvasOnly = false,
+  backgroundType: backgroundTypeProp,
   onExit
 }) {
   const containerRef = useRef(null);
@@ -114,7 +115,16 @@ export default function RemotePadCanvas({
   const [tool, setTool] = useState('pen'); // 'pen' | 'pencil' | 'highlighter' | 'eraser' | 'hand' | 'rect' | 'circle' | 'line' | 'arrow'
   const [color, setColor] = useState('#0f172a');
   const [strokeWidth, setStrokeWidth] = useState(4);
-  const [backgroundType, setBackgroundType] = useState('dotted');
+  const [backgroundType, setBackgroundType] = useState(
+    backgroundTypeProp || pages[activePageIndex]?.background_type || 'dotted'
+  );
+
+  useEffect(() => {
+    const bg = backgroundTypeProp || pages[activePageIndex]?.background_type;
+    if (bg) {
+      setBackgroundType(bg);
+    }
+  }, [backgroundTypeProp, pages, activePageIndex]);
 
   // Palm rejection / Stylus Mode
   // When active, finger touches won't draw strokes (only active stylus e.pointerType === 'pen' draws)
@@ -347,36 +357,55 @@ export default function RemotePadCanvas({
     const offsetY = ((py % gridSize) + gridSize) % gridSize;
 
     if (type === 'dotted') {
-      ctx.fillStyle = isDarkMode ? '#334155' : '#cbd5e1';
+      ctx.fillStyle = isDarkMode ? '#475569' : '#94a3b8';
+      const dotRadius = Math.max(1.0, 1.35 * Math.min(z, 1.5));
       for (let x = offsetX; x < width; x += gridSize) {
         for (let y = offsetY; y < height; y += gridSize) {
           ctx.beginPath();
-          ctx.arc(x, y, 1.2 * Math.min(z, 1.5), 0, Math.PI * 2);
+          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
           ctx.fill();
         }
       }
     } else if (type === 'grid') {
-      ctx.strokeStyle = isDarkMode ? '#1e293b' : '#f1f5f9';
+      ctx.strokeStyle = isDarkMode ? '#334155' : '#cbd5e1';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = offsetX; x < width; x += gridSize) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        const lineX = Math.floor(x) + 0.5;
+        ctx.moveTo(lineX, 0);
+        ctx.lineTo(lineX, height);
       }
       for (let y = offsetY; y < height; y += gridSize) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        const lineY = Math.floor(y) + 0.5;
+        ctx.moveTo(0, lineY);
+        ctx.lineTo(width, lineY);
       }
       ctx.stroke();
     } else if (type === 'ruled') {
-      ctx.strokeStyle = isDarkMode ? '#1e293b' : '#e2e8f0';
+      const lineSpacing = 32 * z;
+      const offY = ((py % lineSpacing) + lineSpacing) % lineSpacing;
+      ctx.strokeStyle = isDarkMode ? '#334155' : '#cbd5e1';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let y = offsetY; y < height; y += gridSize) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+      for (let y = offY; y < height; y += lineSpacing) {
+        const lineY = Math.floor(y) + 0.5;
+        ctx.moveTo(0, lineY);
+        ctx.lineTo(width, lineY);
       }
       ctx.stroke();
+
+      // Classic left margin guideline on notebook ruled paper
+      const marginWorldX = 80;
+      const marginScreenX = marginWorldX * z + px;
+      if (marginScreenX >= 0 && marginScreenX <= width) {
+        ctx.beginPath();
+        ctx.strokeStyle = isDarkMode ? '#e11d4866' : '#f43f5e55';
+        ctx.lineWidth = 1.5;
+        const lineMarginX = Math.floor(marginScreenX) + 0.5;
+        ctx.moveTo(lineMarginX, 0);
+        ctx.lineTo(lineMarginX, height);
+        ctx.stroke();
+      }
     }
 
     ctx.restore();

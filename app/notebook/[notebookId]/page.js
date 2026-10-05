@@ -9,6 +9,7 @@ import {
   Download,
   Settings,
   MoreHorizontal,
+  MoreVertical,
   Lock,
   Globe,
   Check,
@@ -17,7 +18,10 @@ import {
   Grid,
   FileText,
   AlignLeft,
-  CircleDot
+  CircleDot,
+  RotateCcw,
+  Trash2,
+  Eraser
 } from 'lucide-react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { useCollabSocket } from '@/lib/collaboration/useCollabSocket';
@@ -137,13 +141,18 @@ function NotebookEditorSession({
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
   const [showBackgroundMenu, setShowBackgroundMenu] = useState(false);
+  const [showManageMenu, setShowManageMenu] = useState(false);
   const headerMenuRef = useRef(null);
+  const manageMenuRef = useRef(null);
 
   // Close header menus when clicking outside
   useEffect(() => {
     const handleOutside = (e) => {
       if (headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
         setShowBackgroundMenu(false);
+      }
+      if (manageMenuRef.current && !manageMenuRef.current.contains(e.target)) {
+        setShowManageMenu(false);
       }
     };
     document.addEventListener('pointerdown', handleOutside);
@@ -244,9 +253,51 @@ function NotebookEditorSession({
   }, [handleUndo, handleRedo]);
 
   const handleClearCanvas = () => {
-    if (confirm('Clear all strokes and shapes on this page?')) {
+    if (confirm('Clear all strokes, shapes, and text notes on this page?')) {
       sendOp({ type: 'stroke:clear' });
-      setDocumentState((prev) => ({ ...prev, strokes: [], shapes: [] }));
+      setDocumentState({ strokes: [], shapes: [], textBlocks: [] });
+    }
+  };
+
+  const handleClearNotebookOverall = async () => {
+    if (!confirm('Are you sure you want to clear this entire notebook? All pages, drawings, shapes, and notes across all pages will be permanently wiped.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/notebooks/${notebookId}/clear`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        sendOp({ type: 'stroke:clear' });
+        setDocumentState({ strokes: [], shapes: [], textBlocks: [] });
+        if (data.pages && data.pages.length > 0) {
+          setPages(data.pages);
+          setActivePageId(data.activePageId || data.pages[0].id);
+        }
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to clear notebook.');
+      }
+    } catch (err) {
+      console.error('Error clearing notebook overall:', err);
+      alert('Failed to clear notebook.');
+    }
+  };
+
+  const handleDeleteNotebookPermanently = async () => {
+    if (!confirm(`Are you sure you want to permanently delete "${notebook?.title}" from the database? All pages, drawings, notes, and snapshots will be erased forever.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/notebooks/${notebookId}?permanent=true`, { method: 'DELETE' });
+      if (res.ok) {
+        router.push('/dashboard');
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete notebook.');
+      }
+    } catch (err) {
+      console.error('Error deleting notebook permanently:', err);
+      alert('Failed to delete notebook.');
     }
   };
 
@@ -262,7 +313,10 @@ function NotebookEditorSession({
       const res = await fetch(`/api/notebooks/${notebookId}/pages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create' })
+        body: JSON.stringify({
+          action: 'create',
+          background_type: activePage?.background_type || 'blank'
+        })
       });
       if (res.ok) {
         const data = await res.json();
@@ -276,6 +330,8 @@ function NotebookEditorSession({
   };
 
   const handleUpdatePage = async (pageId, updates) => {
+    // Optimistically update pages state immediately for instant UI responsiveness
+    setPages((prevPages) => prevPages.map((p) => (p.id === pageId ? { ...p, ...updates } : p)));
     try {
       const res = await fetch(`/api/pages/${pageId}`, {
         method: 'PATCH',
@@ -284,7 +340,7 @@ function NotebookEditorSession({
       });
       if (res.ok) {
         const data = await res.json();
-        setPages(pages.map((p) => (p.id === pageId ? data.page : p)));
+        setPages((prevPages) => prevPages.map((p) => (p.id === pageId ? data.page : p)));
       }
     } catch (err) {
       console.error('Error updating page:', err);
@@ -522,6 +578,66 @@ function NotebookEditorSession({
           >
             {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
           </button>
+
+          {/* Notebook Management Actions Menu (Clear overall, delete permanently) */}
+          {canEdit && (
+            <div ref={manageMenuRef} className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowManageMenu(!showManageMenu)}
+                title="Notebook Options & Management"
+                className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {showManageMenu && (
+                <div className="absolute top-full right-0 mt-2 w-60 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Notebook Management
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowManageMenu(false);
+                      handleClearCanvas();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <Eraser className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Clear Current Page Canvas</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowManageMenu(false);
+                      handleClearNotebookOverall();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Clear Notebook Overall</span>
+                  </button>
+
+                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowManageMenu(false);
+                      handleDeleteNotebookPermanently();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Notebook Permanently</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -554,6 +670,7 @@ function NotebookEditorSession({
         onUndo={handleUndo}
         onRedo={handleRedo}
         onClear={handleClearCanvas}
+        onClearNotebook={handleClearNotebookOverall}
       />
 
       {/* Tablet-to-PC Pairing Modal */}

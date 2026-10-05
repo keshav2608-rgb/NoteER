@@ -101,8 +101,10 @@ class Room {
     } else if (op.type === 'stroke:erase' && op.strokeId) {
       this.documentState.strokes = this.documentState.strokes.filter(s => s.id !== op.strokeId);
       changed = true;
-    } else if (op.type === 'stroke:clear') {
+    } else if (op.type === 'stroke:clear' || op.type === 'canvas:clear') {
       this.documentState.strokes = [];
+      this.documentState.shapes = [];
+      this.documentState.textBlocks = [];
       changed = true;
     } else if (op.type === 'shape:add' && op.shape) {
       this.documentState.shapes.push(op.shape);

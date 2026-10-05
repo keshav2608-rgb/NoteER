@@ -191,38 +191,55 @@ export default function DrawingCanvas({
     const offsetY = ((py % gridSize) + gridSize) % gridSize;
 
     if (type === 'dotted') {
-      ctx.fillStyle = darkMode ? '#334155' : '#cbd5e1';
+      ctx.fillStyle = darkMode ? '#475569' : '#94a3b8';
+      const dotRadius = Math.max(1.0, 1.35 * Math.min(z, 1.5));
       for (let x = offsetX; x < width; x += gridSize) {
         for (let y = offsetY; y < height; y += gridSize) {
           ctx.beginPath();
-          ctx.arc(x, y, 1.2 * Math.min(z, 1.5), 0, Math.PI * 2);
+          ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
           ctx.fill();
         }
       }
     } else if (type === 'grid') {
-      ctx.strokeStyle = darkMode ? '#1e293b' : '#f1f5f9';
+      ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = offsetX; x < width; x += gridSize) {
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        const lineX = Math.floor(x) + 0.5;
+        ctx.moveTo(lineX, 0);
+        ctx.lineTo(lineX, height);
       }
       for (let y = offsetY; y < height; y += gridSize) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        const lineY = Math.floor(y) + 0.5;
+        ctx.moveTo(0, lineY);
+        ctx.lineTo(width, lineY);
       }
       ctx.stroke();
     } else if (type === 'ruled') {
       const lineSpacing = 32 * z;
       const offY = ((py % lineSpacing) + lineSpacing) % lineSpacing;
-      ctx.strokeStyle = darkMode ? '#1e293b' : '#e2e8f0';
+      ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let y = offY; y < height; y += lineSpacing) {
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        const lineY = Math.floor(y) + 0.5;
+        ctx.moveTo(0, lineY);
+        ctx.lineTo(width, lineY);
       }
       ctx.stroke();
+
+      // Classic left margin guideline on notebook ruled paper
+      const marginWorldX = 80;
+      const marginScreenX = marginWorldX * z + px;
+      if (marginScreenX >= 0 && marginScreenX <= width) {
+        ctx.beginPath();
+        ctx.strokeStyle = darkMode ? '#e11d4866' : '#f43f5e55';
+        ctx.lineWidth = 1.5;
+        const lineMarginX = Math.floor(marginScreenX) + 0.5;
+        ctx.moveTo(lineMarginX, 0);
+        ctx.lineTo(lineMarginX, height);
+        ctx.stroke();
+      }
     }
 
     ctx.restore();

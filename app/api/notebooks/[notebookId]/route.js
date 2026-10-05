@@ -115,15 +115,43 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Only the notebook creator can delete this notebook' }, { status: 403 });
   }
 
-  const now = new Date().toISOString();
-  await db.run('UPDATE notebooks SET deleted_at = ?, updated_at = ? WHERE id = ?', [now, now, notebookId]);
+  const { searchParams } = new URL(request.url);
+  let isPermanent = searchParams.get('permanent') === 'true';
+  try {
+    const body = await request.json().catch(() => ({}));
+    if (body?.permanent) isPermanent = true;
+  } catch (_) {}
 
-  await logAuditEvent({
-    actorUserId: user.id,
-    action: 'notebook_deleted',
-    resourceType: 'notebook',
-    resourceId: notebookId
-  });
+  if (isPermanent) {
+    // 1. Permanently delete from all related tables & collab records
+    await db.run('DELETE FROM collab_document_updates WHERE room_name LIKE ?', [`notebook:${notebookId}:%`]);
+    await db.run('DELETE FROM device_pairings WHERE notebook_id = ?', [notebookId]);
+    await db.run('DELETE FROM document_snapshots WHERE notebook_id = ?', [notebookId]);
+    await db.run('DELETE FROM notifications WHERE notebook_id = ?', [notebookId]);
+    await db.run('DELETE FROM pages WHERE notebook_id = ?', [notebookId]);
+    await db.run('DELETE FROM notebook_members WHERE notebook_id = ?', [notebookId]);
+    await db.run('DELETE FROM notebooks WHERE id = ?', [notebookId]);
 
-  return NextResponse.json({ success: true, message: 'Notebook deleted' });
+    await logAuditEvent({
+      actorUserId: user.id,
+      action: 'notebook_permanently_deleted',
+      resourceType: 'notebook',
+      resourceId: notebookId
+    });
+
+    return NextResponse.json({ success: true, message: 'Notebook permanently deleted from database' });
+  } else {
+    // Soft delete
+    const now = new Date().toISOString();
+    await db.run('UPDATE notebooks SET deleted_at = ?, updated_at = ? WHERE id = ?', [now, now, notebookId]);
+
+    await logAuditEvent({
+      actorUserId: user.id,
+      action: 'notebook_deleted',
+      resourceType: 'notebook',
+      resourceId: notebookId
+    });
+
+    return NextResponse.json({ success: true, message: 'Notebook deleted' });
+  }
 }

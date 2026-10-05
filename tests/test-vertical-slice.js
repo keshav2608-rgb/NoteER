@@ -480,6 +480,63 @@ async function runTests() {
     assert(logs.length > 0, 'Audit log was successfully recorded');
   });
 
+  await testAsync('Clear notebook overall wipes strokes, snapshots, and resets pages to clean Page 1', async () => {
+    const testNbId = 'nb_clear_test_' + Date.now();
+    const now = new Date().toISOString();
+    db.run("INSERT INTO notebooks (id, owner_id, title, description, created_at, updated_at) VALUES (?, 'usr_demo_owner', 'Clear Test', '', ?, ?)", [testNbId, now, now]);
+    db.run("INSERT INTO pages (id, notebook_id, title, sort_order, background_type, created_at, updated_at) VALUES (?, ?, 'Page A', 0, 'grid', ?, ?)", ['p_a_' + testNbId, testNbId, now, now]);
+    db.run("INSERT INTO pages (id, notebook_id, title, sort_order, background_type, created_at, updated_at) VALUES (?, ?, 'Page B', 1, 'ruled', ?, ?)", ['p_b_' + testNbId, testNbId, now, now]);
+    db.run("INSERT INTO document_snapshots (id, notebook_id, title, created_by, created_at, snapshot_data) VALUES (?, ?, 'Snap 1', 'usr_demo_owner', ?, '{}')", ['snp_' + testNbId, testNbId, now]);
+    db.run("INSERT INTO collab_document_updates (id, room_name, update_base64, created_at) VALUES (?, ?, 'data', ?)", ['upd_' + testNbId, `notebook:${testNbId}:page:p_a_${testNbId}`, now]);
+
+    // Perform clear operations matching API
+    await db.run('DELETE FROM collab_document_updates WHERE room_name LIKE ?', [`notebook:${testNbId}:%`]);
+    await db.run('DELETE FROM document_snapshots WHERE notebook_id = ?', [testNbId]);
+    await db.run('UPDATE pages SET title = ?, background_type = ?, sort_order = 0, updated_at = ? WHERE id = ?', ['Page 1', 'blank', now, 'p_a_' + testNbId]);
+    await db.run('DELETE FROM pages WHERE notebook_id = ? AND id != ?', [testNbId, 'p_a_' + testNbId]);
+
+    const remainingPages = db.query('SELECT * FROM pages WHERE notebook_id = ?', [testNbId]);
+    const remainingSnaps = db.query('SELECT * FROM document_snapshots WHERE notebook_id = ?', [testNbId]);
+    const remainingCollab = db.query('SELECT * FROM collab_document_updates WHERE room_name LIKE ?', [`notebook:${testNbId}:%`]);
+
+    assert.strictEqual(remainingPages.length, 1, 'Notebook has exactly 1 reset page');
+    assert.strictEqual(remainingPages[0].title, 'Page 1', 'Reset page title is Page 1');
+    assert.strictEqual(remainingPages[0].background_type, 'blank', 'Reset page background is blank');
+    assert.strictEqual(remainingSnaps.length, 0, 'All snapshots wiped');
+    assert.strictEqual(remainingCollab.length, 0, 'All collab updates wiped');
+  });
+
+  await testAsync('Permanent notebook deletion completely removes notebook and all cascading records from database', async () => {
+    const testNbId = 'nb_perm_del_' + Date.now();
+    const now = new Date().toISOString();
+    db.run("INSERT INTO notebooks (id, owner_id, title, description, created_at, updated_at) VALUES (?, 'usr_demo_owner', 'Perm Del Test', '', ?, ?)", [testNbId, now, now]);
+    db.run("INSERT INTO pages (id, notebook_id, title, sort_order, background_type, created_at, updated_at) VALUES (?, ?, 'Page 1', 0, 'blank', ?, ?)", ['p_del_' + testNbId, testNbId, now, now]);
+    db.run("INSERT INTO notebook_members (id, notebook_id, user_id, role, created_at, updated_at) VALUES (?, ?, 'usr_demo_editor', 'editor', ?, ?)", ['mem_del_' + testNbId, testNbId, now, now]);
+    db.run("INSERT INTO device_pairings (id, notebook_id, user_id, pairing_code, expires_at, created_at) VALUES (?, ?, 'usr_demo_owner', ?, ?, ?)", ['pair_' + testNbId, testNbId, '777-888', now, now]);
+    db.run("INSERT INTO collab_document_updates (id, room_name, update_base64, created_at) VALUES (?, ?, 'data', ?)", ['upd_del_' + testNbId, `notebook:${testNbId}:page:1`, now]);
+
+    // Perform permanent deletion matching API
+    await db.run('DELETE FROM collab_document_updates WHERE room_name LIKE ?', [`notebook:${testNbId}:%`]);
+    await db.run('DELETE FROM device_pairings WHERE notebook_id = ?', [testNbId]);
+    await db.run('DELETE FROM document_snapshots WHERE notebook_id = ?', [testNbId]);
+    await db.run('DELETE FROM notifications WHERE notebook_id = ?', [testNbId]);
+    await db.run('DELETE FROM pages WHERE notebook_id = ?', [testNbId]);
+    await db.run('DELETE FROM notebook_members WHERE notebook_id = ?', [testNbId]);
+    await db.run('DELETE FROM notebooks WHERE id = ?', [testNbId]);
+
+    const nbCheck = db.get('SELECT * FROM notebooks WHERE id = ?', [testNbId]);
+    const pagesCheck = db.query('SELECT * FROM pages WHERE notebook_id = ?', [testNbId]);
+    const membersCheck = db.query('SELECT * FROM notebook_members WHERE notebook_id = ?', [testNbId]);
+    const pairingsCheck = db.query('SELECT * FROM device_pairings WHERE notebook_id = ?', [testNbId]);
+    const collabCheck = db.query('SELECT * FROM collab_document_updates WHERE room_name LIKE ?', [`notebook:${testNbId}:%`]);
+
+    assert(!nbCheck, 'Notebook record permanently deleted from database');
+    assert.strictEqual(pagesCheck.length, 0, 'All pages permanently deleted');
+    assert.strictEqual(membersCheck.length, 0, 'All members permanently deleted');
+    assert.strictEqual(pairingsCheck.length, 0, 'All pairings permanently deleted');
+    assert.strictEqual(collabCheck.length, 0, 'All collab records permanently deleted');
+  });
+
   console.log(`\n==============================================`);
   console.log(`🎉 All ${passed}/${total} Integration Tests Passed Successfully!`);
   console.log(`==============================================\n`);

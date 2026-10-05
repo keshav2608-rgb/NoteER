@@ -221,6 +221,7 @@ function RemotePadSession({
       onCreatePage={null}
       syncStatus={syncStatus}
       isCanvasOnly={isCanvasOnly}
+      backgroundType={activePage?.background_type || 'dotted'}
       onExit={isCanvasOnly ? onDisconnect : () => router.push(`/notebook/${notebookId}`)}
     />
   );
