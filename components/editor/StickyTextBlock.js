@@ -3,8 +3,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { Trash2, Move } from 'lucide-react';
 
-export default function StickyTextBlock({ block, onUpdate, onDelete, zoom, panX, panY }) {
-  const { canEdit, darkMode } = useNotebookStore();
+export default function StickyTextBlock({
+  block,
+  onUpdate,
+  onDelete,
+  zoom,
+  panX,
+  panY,
+  isDarkModeOverride,
+  canEditOverride
+}) {
+  const storeState = useNotebookStore();
+  const canEdit = canEditOverride !== undefined ? canEditOverride : storeState.canEdit;
+  const darkMode = isDarkModeOverride !== undefined ? isDarkModeOverride : storeState.darkMode;
   const [isFocused, setIsFocused] = useState(!block.text);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);

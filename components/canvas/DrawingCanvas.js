@@ -221,8 +221,10 @@ export default function DrawingCanvas({
   const pinchStartRef = useRef(null);
   const zoomRef = useRef(zoom);
   const panRef = useRef({ x: panX, y: panY });
+  const strokeWidthRef = useRef(strokeWidth);
   zoomRef.current = zoom;
   panRef.current = { x: panX, y: panY };
+  strokeWidthRef.current = strokeWidth;
 
   // Non-passive wheel listener for smooth zoom & pan without console passive listener warnings
   useEffect(() => {
@@ -452,7 +454,7 @@ export default function DrawingCanvas({
           endX: world.x,
           endY: world.y,
           color,
-          width: strokeWidth,
+          width: strokeWidthRef.current,
           opacity,
           fillColor
         };
@@ -467,7 +469,7 @@ export default function DrawingCanvas({
     if (currentPointsRef.current.length > 0) {
       const simplified = simplifyPoints(currentPointsRef.current, 1.2);
       const isHighlighter = tool === 'highlighter';
-      const effectiveWidth = strokeWidth;
+      const effectiveWidth = isHighlighter ? Math.max(strokeWidthRef.current * 2, 16) : strokeWidthRef.current;
       const effectiveOpacity = isHighlighter ? 0.35 : opacity;
 
       const stroke = {
@@ -499,7 +501,7 @@ export default function DrawingCanvas({
     ctx.scale(zoom, zoom);
 
     const isHighlighter = tool === 'highlighter';
-    const effectiveWidth = strokeWidth;
+    const effectiveWidth = isHighlighter ? Math.max(strokeWidthRef.current * 2, 16) : strokeWidthRef.current;
     const effectiveOpacity = isHighlighter ? 0.35 : opacity;
 
     renderStroke(ctx, {
@@ -534,7 +536,7 @@ export default function DrawingCanvas({
       endX: current.x,
       endY: current.y,
       color,
-      width: strokeWidth,
+      width: strokeWidthRef.current,
       opacity,
       fillColor
     });

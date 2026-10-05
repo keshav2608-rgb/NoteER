@@ -10,6 +10,7 @@ import {
   hitTestShape
 } from '@/lib/drawing/engine';
 import MiniMap from './MiniMap';
+import StickyTextBlock from '../editor/StickyTextBlock';
 import {
   Pen,
   Pencil,
@@ -19,6 +20,7 @@ import {
   Circle,
   Minus,
   MoveRight,
+  Type,
   Hand,
   Maximize2,
   Minimize2,
@@ -322,13 +324,6 @@ export default function RemotePadCanvas({
       }
     }
 
-    // Render text blocks
-    if (documentState.textBlocks) {
-      for (const tb of documentState.textBlocks) {
-        renderTextBlock(ctx, tb);
-      }
-    }
-
     ctx.restore();
   }, [documentState, zoom, pan, backgroundType, isDarkMode]);
 
@@ -382,38 +377,6 @@ export default function RemotePadCanvas({
       }
       ctx.stroke();
     }
-
-    ctx.restore();
-  }
-
-  function renderTextBlock(ctx, tb) {
-    ctx.save();
-    const x = tb.x || 0;
-    const y = tb.y || 0;
-    const w = tb.width || 200;
-    const h = tb.height || 120;
-    const r = 8;
-
-    ctx.fillStyle = isDarkMode ? '#1e293b' : (tb.color || '#fef08a');
-    ctx.strokeStyle = isDarkMode ? '#334155' : '#e2e8f0';
-    ctx.lineWidth = 1;
-
-    if (ctx.roundRect) {
-      ctx.beginPath();
-      ctx.roundRect(x, y, w, h, r);
-      ctx.fill();
-      ctx.stroke();
-    } else {
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeRect(x, y, w, h);
-    }
-
-    ctx.fillStyle = isDarkMode ? '#f8fafc' : '#1e293b';
-    ctx.font = '13px sans-serif';
-    const lines = (tb.text || '').split('\n');
-    lines.slice(0, 6).forEach((line, idx) => {
-      ctx.fillText(line, x + 10, y + 22 + idx * 18, w - 20);
-    });
 
     ctx.restore();
   }
@@ -482,6 +445,23 @@ export default function RemotePadCanvas({
 
     // World coordinate conversion
     const world = screenToWorld(screenX, screenY, zoomRef.current, panRef.current.x, panRef.current.y);
+
+    // Text note creation directly on canvas (matching PC in-canvas text)
+    if (tool === 'text') {
+      const textColor = isDarkMode ? '#f8fafc' : (color === '#ffffff' || color === '#f8fafc' ? '#0f172a' : color || '#0f172a');
+      const newBlock = {
+        id: 'txt_' + Math.random().toString(36).substring(2, 10),
+        x: Math.round(world.x),
+        y: Math.round(world.y),
+        width: 320,
+        text: '',
+        color: textColor,
+        fontSize: Math.max(16, strokeWidth * 3)
+      };
+      onSendOp({ type: 'text:update', textBlock: newBlock });
+      vibrate(8);
+      return;
+    }
 
     if (tool === 'eraser') {
       isDrawingRef.current = true; // mark as erasing so pointerMove continues to erase
@@ -600,11 +580,14 @@ export default function RemotePadCanvas({
         pressure: e.pressure || 0.5
       });
 
+      const isHighlighter = tool === 'highlighter';
+      const effectiveWidth = isHighlighter ? Math.max(strokeWidth * 2, 16) : strokeWidth;
       renderStroke(ctx, {
         tool,
         points: currentPointsRef.current,
         color,
-        width: strokeWidth
+        width: effectiveWidth,
+        opacity: isHighlighter ? 0.35 : 1
       });
     }
 
@@ -675,7 +658,7 @@ export default function RemotePadCanvas({
     if (currentPointsRef.current.length > 0) {
       const simplified = simplifyPoints(currentPointsRef.current, 1.2);
       const isHighlighter = tool === 'highlighter';
-      const effectiveWidth = isHighlighter ? Math.max(strokeWidth, 16) : strokeWidth;
+      const effectiveWidth = isHighlighter ? Math.max(strokeWidth * 2, 16) : strokeWidth;
       const stroke = {
         id: 'strk_' + Math.random().toString(36).substring(2, 10),
         tool,
@@ -1032,11 +1015,46 @@ export default function RemotePadCanvas({
         onPointerLeave={handlePointerUp}
         onPointerCancel={handlePointerUp}
         className={`relative flex-1 ${isDarkMode ? 'bg-slate-900' : 'bg-white'} touch-none ${
-          tool === 'hand' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
+          tool === 'hand' ? 'cursor-grab active:cursor-grabbing' : tool === 'text' ? 'cursor-text' : 'cursor-crosshair'
         }`}
       >
         <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
         <canvas ref={draftCanvasRef} className="absolute inset-0 pointer-events-none" />
+
+        {/* In-Canvas Direct Text Notes (matching PC text-based canvas) */}
+        {documentState.textBlocks?.map((block) => (
+          <StickyTextBlock
+            key={block.id}
+            block={block}
+            zoom={zoom}
+            panX={pan.x}
+            panY={pan.y}
+            isDarkModeOverride={isDarkMode}
+            canEditOverride={true}
+            onUpdate={(updated) => onSendOp({ type: 'text:update', textBlock: updated })}
+            onDelete={(id) => onSendOp({
+              type: 'text:update',
+              textBlock: { id, deleted: true }
+            })}
+          />
+        ))}
+
+        {/* Type Mode Helper Banner */}
+        {tool === 'text' && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-full shadow-lg text-xs font-medium animate-pulse">
+            <Type size={14} />
+            <span>Type Mode: Tap anywhere on canvas to write a note</span>
+            <button
+              onClick={() => {
+                setTool('pen');
+                vibrate(8);
+              }}
+              className="ml-2 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[11px] font-semibold"
+            >
+              Draw Mode
+            </button>
+          </div>
+        )}
 
         {/* Floating Zoom & Reset View HUD */}
         <div className="absolute top-4 right-4 z-20 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-2xl border border-slate-700/80 shadow-lg pointer-events-auto">
@@ -1085,6 +1103,39 @@ export default function RemotePadCanvas({
 
       {/* Touch-Optimized Ergonomic Bottom Dock */}
       <footer className="relative bg-slate-950/95 border-t border-slate-800/80 px-2 sm:px-4 py-2.5 z-30 flex flex-wrap items-center justify-between gap-2 shadow-2xl backdrop-blur-md">
+        
+        {/* Draw vs Type Mode Toggle */}
+        <div className="flex items-center p-0.5 bg-slate-900/90 rounded-2xl border border-slate-800/80 shadow-inner">
+          <button
+            type="button"
+            onClick={() => {
+              if (tool === 'text') setTool('pen');
+              vibrate(8);
+            }}
+            title="Draw Mode: Draw freehand or geometric shapes"
+            className={`p-2 sm:px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              tool !== 'text' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Pen className="w-4 h-4" />
+            <span className="hidden sm:inline">Draw</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTool('text');
+              vibrate(8);
+            }}
+            title="Type Note Mode: Tap anywhere to type note"
+            className={`p-2 sm:px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              tool === 'text' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Type className="w-4 h-4" />
+            <span className="hidden sm:inline">Type Note</span>
+          </button>
+        </div>
+
         {/* Drawing Tools Group */}
         <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-2xl border border-slate-800/80 shadow-inner">
           <button

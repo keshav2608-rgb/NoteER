@@ -104,6 +104,9 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
   const shapePickerRef = useRef(null);
   const settingsRef = useRef(null);
   const thicknessRef = useRef(null);
+  const shapeBtnRef = useRef(null);
+  const settingsBtnRef = useRef(null);
+  const thicknessBtnRef = useRef(null);
 
   const isShapeTool = ['rect', 'rectangle', 'circle', 'line', 'arrow'].includes(tool);
 
@@ -117,13 +120,28 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
   // Click outside listener to dismiss popovers
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (shapePickerRef.current && !shapePickerRef.current.contains(e.target)) {
+      if (
+        shapePickerRef.current &&
+        !shapePickerRef.current.contains(e.target) &&
+        shapeBtnRef.current &&
+        !shapeBtnRef.current.contains(e.target)
+      ) {
         setShowShapePicker(false);
       }
-      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+      if (
+        settingsRef.current &&
+        !settingsRef.current.contains(e.target) &&
+        settingsBtnRef.current &&
+        !settingsBtnRef.current.contains(e.target)
+      ) {
         setShowSettingsPopover(false);
       }
-      if (thicknessRef.current && !thicknessRef.current.contains(e.target)) {
+      if (
+        thicknessRef.current &&
+        !thicknessRef.current.contains(e.target) &&
+        thicknessBtnRef.current &&
+        !thicknessBtnRef.current.contains(e.target)
+      ) {
         setShowThicknessPopover(false);
       }
     };
@@ -131,18 +149,283 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
     return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, []);
 
-  // Automatically adjust tool defaults when switching to highlighter
+  // Set active tool without destructively wiping the user's chosen stroke thickness
   const handleSelectTool = (newTool) => {
     setTool(newTool);
-    if (newTool === 'highlighter' && strokeWidth < 12) {
-      setStrokeWidth(18);
-    }
   };
 
   const CurrentShapeIcon = SHAPE_TOOLS.find(s => s.id === (isShapeTool ? (tool === 'rectangle' ? 'rect' : tool) : selectedShape))?.icon || Square;
 
   return (
-    <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 max-w-[calc(100vw-16px)] sm:max-w-[96vw]">
+    <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-1.5 max-w-[calc(100vw-16px)] sm:max-w-[96vw] pointer-events-none">
+      {/* Unclipped Popovers Layer (Positioned directly above the toolbar pill) */}
+      <div className="pointer-events-auto flex flex-col items-center">
+        {/* Shape Picker Popover */}
+        {showShapePicker && (
+          <div
+            ref={shapePickerRef}
+            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1 animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100"
+          >
+            {SHAPE_TOOLS.map((s) => {
+              const Icon = s.icon;
+              const isActive = (isShapeTool && (tool === s.id || (tool === 'rectangle' && s.id === 'rect'))) || selectedShape === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedShape(s.id);
+                    setTool(s.id);
+                    setShowShapePicker(false);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title={s.label}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-[11px] font-medium hidden sm:inline">{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Dedicated Stroke Thickness Popover */}
+        {showThicknessPopover && (
+          <div
+            ref={thicknessRef}
+            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-2xl flex flex-col gap-2.5 w-64 max-w-[90vw] z-50 text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Stroke Thickness
+              </span>
+              <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800/60">
+                {strokeWidth}px
+              </span>
+            </div>
+
+            {/* Live Visual Stroke Preview */}
+            <div className="w-full h-8 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center px-4 overflow-hidden border border-slate-200/60 dark:border-slate-700/60">
+              <div
+                className="w-full rounded-full transition-all"
+                style={{
+                  height: `${Math.max(1, Math.min(strokeWidth, 24))}px`,
+                  backgroundColor: color === '#ffffff' || color === '#f8fafc' ? (darkMode ? '#ffffff' : '#0f172a') : color
+                }}
+              />
+            </div>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-5 gap-1">
+              {STROKE_WIDTHS.map((sw) => (
+                <button
+                  key={sw.value}
+                  type="button"
+                  onClick={() => setStrokeWidth(sw.value)}
+                  className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                    strokeWidth === sw.value
+                      ? 'bg-indigo-600 text-white shadow-xs font-semibold'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  {sw.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Interactive Range Slider + Step Controls */}
+            <div className="flex items-center gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setStrokeWidth(Math.max(1, strokeWidth - 1))}
+                className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors"
+                title="Decrease thickness by 1px"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min="1"
+                max="48"
+                value={strokeWidth}
+                onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => setStrokeWidth(Math.min(48, strokeWidth + 1))}
+                className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors"
+                title="Increase thickness by 1px"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Color & Stroke Customization Popover */}
+        {showSettingsPopover && (
+          <div
+            ref={settingsRef}
+            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-2xl flex flex-col gap-3.5 w-72 max-w-[90vw] animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100"
+          >
+            {/* Color Header & Native Color Picker */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Color Options
+              </span>
+              <div className="flex items-center gap-2">
+                <div className="relative flex items-center justify-center cursor-pointer">
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+                    title="Custom Color Picker"
+                  />
+                  <div className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600 shadow-sm flex items-center justify-center bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500">
+                    <Palette className="w-3 h-3 text-white drop-shadow-sm pointer-events-none" />
+                  </div>
+                </div>
+                <span className="text-[11px] font-mono uppercase bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300">
+                  {color}
+                </span>
+              </div>
+            </div>
+
+            {/* 16-color Palette Grid */}
+            <div className="grid grid-cols-8 gap-1.5">
+              {EXPANDED_PALETTE.map((c) => {
+                const isSelected = color.toLowerCase() === c.hex.toLowerCase();
+                return (
+                  <button
+                    key={c.hex}
+                    type="button"
+                    onClick={() => setColor(c.hex)}
+                    title={c.name}
+                    className={`w-6 h-6 rounded-full transition-transform border border-slate-200 dark:border-slate-700 shadow-2xs ${
+                      isSelected
+                        ? 'scale-125 ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 border-white'
+                        : 'hover:scale-110'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Stroke Width Slider & Presets */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Thickness: {strokeWidth}px
+                </span>
+                <div
+                  className="rounded-full bg-slate-900 dark:bg-white"
+                  style={{ width: Math.max(Math.min(strokeWidth, 16), 2), height: Math.max(Math.min(strokeWidth, 16), 2) }}
+                />
+              </div>
+
+              <div className="grid grid-cols-5 gap-1">
+                {STROKE_WIDTHS.map((sw) => (
+                  <button
+                    key={sw.value}
+                    type="button"
+                    onClick={() => setStrokeWidth(sw.value)}
+                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                      strokeWidth === sw.value
+                        ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {sw.label}
+                  </button>
+                ))}
+              </div>
+
+              <input
+                type="range"
+                min="1"
+                max="48"
+                value={strokeWidth}
+                onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+              />
+            </div>
+
+            {/* Opacity Slider */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Ink Opacity: {Math.round((opacity || 1) * 100)}%
+              </span>
+              <div className="grid grid-cols-4 gap-1">
+                {OPACITY_PRESETS.map((op) => (
+                  <button
+                    key={op.value}
+                    type="button"
+                    onClick={() => setOpacity(op.value)}
+                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                      opacity === op.value
+                        ? 'bg-indigo-600 text-white shadow-2xs font-semibold'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Shape Fill Mode */}
+            {isShapeTool && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Shape Fill
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setFillColor('transparent')}
+                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                      fillColor === 'transparent'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    None
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFillColor(color)}
+                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                      fillColor === color
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    Solid
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFillColor(color + '33')}
+                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                      fillColor?.length === 9
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    20% Tint
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
       {/* Floating Toolbar Pill */}
       <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-canvas select-none overflow-x-auto no-scrollbar max-w-full touch-pan-x">
         
@@ -234,7 +517,8 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         </div>
 
         {/* Shapes Menu Group */}
-        <div ref={shapePickerRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
+        {/* Shapes Menu Group */}
+        <div ref={shapeBtnRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <div className={`flex items-center rounded-xl transition-all ${isShapeTool ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
             <button
               type="button"
@@ -244,6 +528,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
                 } else {
                   setShowShapePicker(!showShapePicker);
                 }
+                setShowThicknessPopover(false);
                 setShowSettingsPopover(false);
               }}
               title="Shape Tool (Click to draw, click arrow to change shape)"
@@ -256,6 +541,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               onClick={(e) => {
                 e.stopPropagation();
                 setShowShapePicker(!showShapePicker);
+                setShowThicknessPopover(false);
                 setShowSettingsPopover(false);
               }}
               title="Choose Shape (Rectangle, Circle, Line, Arrow)"
@@ -264,35 +550,6 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               <ChevronDown className="w-3 h-3" />
             </button>
           </div>
-
-          {showShapePicker && (
-            <div className="absolute bottom-full mb-3 left-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1 animate-in fade-in zoom-in-95 z-50">
-              {SHAPE_TOOLS.map((s) => {
-                const Icon = s.icon;
-                const isActive = (isShapeTool && (tool === s.id || (tool === 'rectangle' && s.id === 'rect'))) || selectedShape === s.id;
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedShape(s.id);
-                      setTool(s.id);
-                      setShowShapePicker(false);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-                      isActive
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                    title={s.label}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="text-[11px] font-medium hidden sm:inline">{s.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* Pan Hand */}
@@ -358,8 +615,8 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
           </label>
         </div>
 
-        {/* Dedicated Stroke Thickness Button & Popover on Toolbar */}
-        <div ref={thicknessRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
+        {/* Dedicated Stroke Thickness Trigger on Toolbar */}
+        <div ref={thicknessBtnRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -368,73 +625,36 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               setShowShapePicker(false);
             }}
             title="Stroke Thickness"
-            className="flex items-center gap-1.5 p-1.5 sm:px-2 sm:py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+            className={`flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl transition-all ${
+              showThicknessPopover
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+            }`}
           >
             <div
-              className="rounded-full bg-slate-800 dark:bg-slate-200"
-              style={{ width: Math.max(Math.min(strokeWidth, 16), 4), height: Math.max(Math.min(strokeWidth, 16), 4) }}
+              className={`rounded-full ${showThicknessPopover ? 'bg-white' : 'bg-slate-800 dark:bg-slate-200'}`}
+              style={{ width: Math.max(Math.min(strokeWidth, 14), 4), height: Math.max(Math.min(strokeWidth, 14), 4) }}
             />
             <span className="text-xs font-mono font-semibold">{strokeWidth}px</span>
             <ChevronDown className="w-3 h-3 opacity-60" />
           </button>
-
-          {showThicknessPopover && (
-            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 w-60 z-50 text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Stroke Thickness
-                </span>
-                <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
-                  {strokeWidth}px
-                </span>
-              </div>
-
-              {/* Quick Presets */}
-              <div className="grid grid-cols-5 gap-1">
-                {STROKE_WIDTHS.map((sw) => (
-                  <button
-                    key={sw.value}
-                    type="button"
-                    onClick={() => {
-                      setStrokeWidth(sw.value);
-                      setShowThicknessPopover(false);
-                    }}
-                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
-                      strokeWidth === sw.value
-                        ? 'bg-indigo-600 text-white shadow-xs'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                    }`}
-                  >
-                    {sw.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Interactive Range Slider */}
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="range"
-                  min="1"
-                  max="36"
-                  value={strokeWidth}
-                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                  className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
-                />
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Color & Stroke Customization Popover Button */}
-        <div ref={settingsRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
+        {/* Color & Stroke Customization Trigger Button */}
+        <div ref={settingsBtnRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={() => {
               setShowSettingsPopover(!showSettingsPopover);
+              setShowThicknessPopover(false);
               setShowShapePicker(false);
             }}
             title="Stroke Thickness, Opacity & Fill Options"
-            className="flex items-center gap-1.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className={`flex items-center gap-1.5 p-1.5 rounded-xl transition-all ${
+              showSettingsPopover
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+            }`}
           >
             {/* Active Color dot preview */}
             <span
@@ -442,171 +662,11 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               style={{ backgroundColor: color }}
             />
             <span
-              className="rounded-full bg-slate-700 dark:bg-slate-300 hidden md:inline-block"
-              style={{ width: Math.max(strokeWidth, 4), height: Math.max(strokeWidth, 4) }}
+              className={`rounded-full hidden md:inline-block ${showSettingsPopover ? 'bg-white' : 'bg-slate-700 dark:bg-slate-300'}`}
+              style={{ width: Math.max(Math.min(strokeWidth, 14), 4), height: Math.max(Math.min(strokeWidth, 14), 4) }}
             />
-            <Sliders className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            <Sliders className="w-3.5 h-3.5 opacity-80" />
           </button>
-
-          {showSettingsPopover && (
-            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-2xl flex flex-col gap-3.5 w-72 max-w-[90vw] animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100">
-              
-              {/* Color Header & Native Color Picker */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Color Options
-                </span>
-                
-                {/* HTML5 Native Color Picker & Hex Tag */}
-                <div className="flex items-center gap-2">
-                  <div className="relative flex items-center justify-center cursor-pointer">
-                    <input
-                      type="color"
-                      value={color}
-                      onChange={(e) => setColor(e.target.value)}
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
-                      title="Custom Color Picker"
-                    />
-                    <div
-                      className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600 shadow-sm flex items-center justify-center bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500"
-                    >
-                      <Palette className="w-3 h-3 text-white drop-shadow-sm pointer-events-none" />
-                    </div>
-                  </div>
-                  <span className="text-[11px] font-mono uppercase bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md text-slate-700 dark:text-slate-300">
-                    {color}
-                  </span>
-                </div>
-              </div>
-
-              {/* 16-color Palette Grid */}
-              <div className="grid grid-cols-8 gap-1.5">
-                {EXPANDED_PALETTE.map((c) => {
-                  const isSelected = color.toLowerCase() === c.hex.toLowerCase();
-                  return (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => setColor(c.hex)}
-                      title={c.name}
-                      className={`w-6 h-6 rounded-full transition-transform border border-slate-200 dark:border-slate-700 shadow-2xs ${
-                        isSelected
-                          ? 'scale-125 ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 border-white'
-                          : 'hover:scale-110'
-                      }`}
-                      style={{ backgroundColor: c.hex }}
-                    />
-                  );
-                })}
-              </div>
-
-              {/* Stroke Width Slider & Presets */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Thickness: {strokeWidth}px
-                  </span>
-                  <div
-                    className="rounded-full bg-slate-900 dark:bg-white"
-                    style={{ width: Math.max(strokeWidth, 2), height: Math.max(strokeWidth, 2) }}
-                  />
-                </div>
-
-                <div className="grid grid-cols-5 gap-1">
-                  {STROKE_WIDTHS.map((sw) => (
-                    <button
-                      key={sw.value}
-                      type="button"
-                      onClick={() => setStrokeWidth(sw.value)}
-                      className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
-                        strokeWidth === sw.value
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
-                    >
-                      {sw.label}
-                    </button>
-                  ))}
-                </div>
-
-                <input
-                  type="range"
-                  min="1"
-                  max="36"
-                  value={strokeWidth}
-                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                  className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
-                />
-              </div>
-
-              {/* Opacity Slider */}
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Ink Opacity: {Math.round((opacity || 1) * 100)}%
-                </span>
-                <div className="grid grid-cols-4 gap-1">
-                  {OPACITY_PRESETS.map((op) => (
-                    <button
-                      key={op.value}
-                      type="button"
-                      onClick={() => setOpacity(op.value)}
-                      className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
-                        opacity === op.value
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                      }`}
-                    >
-                      {op.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Shape Fill Mode */}
-              {isShapeTool && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                    Shape Fill
-                  </span>
-                  <div className="grid grid-cols-3 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setFillColor('transparent')}
-                      className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
-                        fillColor === 'transparent'
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Outline Only
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFillColor(color)}
-                      className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
-                        fillColor === color
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Solid Fill
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFillColor(color + '33')}
-                      className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
-                        fillColor?.length === 9
-                          ? 'bg-indigo-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                      }`}
-                    >
-                      Translucent
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Undo / Redo */}
