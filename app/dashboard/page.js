@@ -220,7 +220,7 @@ export default function DashboardPage() {
               Realtime Canvas Workspace
             </span>
             <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight mt-2">
-              Welcome back, {user?.name?.split(' ')[0]}
+              {user?.isNewUser ? `Welcome, ${user?.name?.split(' ')[0]}` : `Welcome back, ${user?.name?.split(' ')[0]}`}
             </h2>
             <p className="text-slate-300 text-xs md:text-sm max-w-lg mt-1 leading-relaxed">
               Create a multi-page notebook, invite collaborators, or connect a tablet to draw live into your desktop screen.

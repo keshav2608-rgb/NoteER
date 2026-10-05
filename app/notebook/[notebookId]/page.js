@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
@@ -13,7 +13,11 @@ import {
   Globe,
   Check,
   Sun,
-  Moon
+  Moon,
+  Grid,
+  FileText,
+  AlignLeft,
+  CircleDot
 } from 'lucide-react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { useCollabSocket } from '@/lib/collaboration/useCollabSocket';
@@ -108,6 +112,13 @@ export default function NotebookPage({ params }) {
   );
 }
 
+const BACKGROUND_TYPES = [
+  { id: 'dotted', label: 'Dotted Paper', icon: CircleDot },
+  { id: 'grid', label: 'Math Grid', icon: Grid },
+  { id: 'ruled', label: 'Ruled Lined', icon: AlignLeft },
+  { id: 'blank', label: 'Blank Canvas', icon: FileText }
+];
+
 function NotebookEditorSession({
   notebookId,
   notebook,
@@ -125,6 +136,22 @@ function NotebookEditorSession({
   const [showPairingModal, setShowPairingModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [showBackgroundMenu, setShowBackgroundMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  const headerMenuRef = useRef(null);
+
+  // Close header menus when clicking outside
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target)) {
+        setShowBackgroundMenu(false);
+        setShowMobileMenu(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    return () => document.removeEventListener('pointerdown', handleOutside);
+  }, []);
 
   const {
     activePageId,
@@ -388,59 +415,207 @@ function NotebookEditorSession({
           <PresenceBar currentUser={currentUser} />
         </div>
 
-        {/* Right: Actions (Pair Tablet, Share, History, Export, Dark Theme) */}
-        <div className="flex items-center gap-1 sm:gap-1.5">
-          {/* Connect Drawing Tablet Button */}
-          <button
-            type="button"
-            onClick={() => setShowPairingModal(true)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors shadow-2xs"
-            title="Use iPad or tablet as drawing surface for this PC"
-          >
-            <Tablet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Connect Tablet</span>
-          </button>
+        {/* Right: Actions (Pair Tablet, Share, Page Design, History, Export, Dark Theme) */}
+        <div ref={headerMenuRef} className="flex items-center gap-1 sm:gap-1.5">
+          
+          {/* Desktop & Tablet Actions */}
+          <div className="hidden sm:flex items-center gap-1 sm:gap-1.5">
+            {/* Connect Drawing Tablet Button */}
+            <button
+              type="button"
+              onClick={() => setShowPairingModal(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors shadow-2xs"
+              title="Use iPad or tablet as drawing surface for this PC"
+            >
+              <Tablet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <span>Connect Tablet</span>
+            </button>
 
-          {/* Share Button */}
-          <button
-            type="button"
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
-            title="Share & invite collaborators"
-          >
-            <Share2 className="w-4 h-4" />
-            <span className="hidden sm:inline">Share</span>
-          </button>
+            {/* Share Button */}
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
+              title="Share & invite collaborators"
+            >
+              <Share2 className="w-4 h-4" />
+              <span>Share</span>
+            </button>
 
-          {/* Version Snapshots Button */}
-          <button
-            type="button"
-            onClick={() => setShowSnapshotModal(true)}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Version History & Snapshots"
-          >
-            <History className="w-4 h-4" />
-          </button>
+            {/* Page Paper Design Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBackgroundMenu(!showBackgroundMenu);
+                  setShowMobileMenu(false);
+                }}
+                title="Page Paper Style (Dotted, Grid, Ruled, Blank)"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
+              >
+                <Grid className="w-4 h-4 text-indigo-500" />
+                <span className="capitalize hidden lg:inline">{activePage?.background_type || 'dotted'}</span>
+              </button>
 
-          {/* Export PNG */}
-          <button
-            type="button"
-            onClick={handleExportPNG}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title="Export page as image"
-          >
-            <Download className="w-4 h-4" />
-          </button>
+              {showBackgroundMenu && (
+                <div className="absolute top-full right-0 mt-2 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    Paper Design
+                  </div>
+                  {BACKGROUND_TYPES.map((b) => {
+                    const Icon = b.icon;
+                    const isSelected = (activePage?.background_type || 'dotted') === b.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          handleUpdatePage(activePage.id, { background_type: b.id });
+                          setShowBackgroundMenu(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-3.5 h-3.5" />
+                          <span>{b.label}</span>
+                        </div>
+                        {isSelected && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
-          {/* Dark Mode Toggle */}
-          <button
-            type="button"
-            onClick={handleToggleDark}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            title={darkMode ? 'Switch to Light Canvas' : 'Switch to Dark Canvas'}
-          >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
-          </button>
+            {/* Version Snapshots Button */}
+            <button
+              type="button"
+              onClick={() => setShowSnapshotModal(true)}
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Version History & Snapshots"
+            >
+              <History className="w-4 h-4" />
+            </button>
+
+            {/* Export PNG */}
+            <button
+              type="button"
+              onClick={handleExportPNG}
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Export page as image"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+
+            {/* Dark Mode Toggle */}
+            <button
+              type="button"
+              onClick={handleToggleDark}
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={darkMode ? 'Switch to Light Canvas' : 'Switch to Dark Canvas'}
+            >
+              {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+            </button>
+          </div>
+
+          {/* Mobile Specific Header Actions (< 640px) */}
+          <div className="flex sm:hidden items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowPairingModal(true)}
+              className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300"
+              title="Connect Tablet"
+            >
+              <Tablet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowMobileMenu(!showMobileMenu);
+                setShowBackgroundMenu(false);
+              }}
+              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+              title="More Actions"
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+
+            {/* Mobile Overflow Menu Dropdown */}
+            {showMobileMenu && (
+              <div className="absolute top-14 right-3 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 flex flex-col gap-1 text-xs animate-in fade-in zoom-in-95">
+                {/* Paper Design Selector inside Mobile Menu */}
+                <div className="px-2 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Paper Design
+                </div>
+                <div className="grid grid-cols-2 gap-1 mb-1">
+                  {BACKGROUND_TYPES.map((b) => {
+                    const isSelected = (activePage?.background_type || 'dotted') === b.id;
+                    return (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          handleUpdatePage(activePage.id, { background_type: b.id });
+                          setShowMobileMenu(false);
+                        }}
+                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium transition-colors ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <b.icon className="w-3 h-3" />
+                        <span>{b.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="h-px bg-slate-200 dark:bg-slate-800 my-1" />
+
+                <button
+                  type="button"
+                  onClick={() => { setShowShareModal(true); setShowMobileMenu(false); }}
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Share2 className="w-4 h-4 text-indigo-500" />
+                  <span>Share Notebook</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setShowSnapshotModal(true); setShowMobileMenu(false); }}
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <History className="w-4 h-4 text-blue-500" />
+                  <span>Version Snapshots</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { handleExportPNG(); setShowMobileMenu(false); }}
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Download className="w-4 h-4 text-emerald-500" />
+                  <span>Export Canvas Image</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { handleToggleDark(); setShowMobileMenu(false); }}
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-indigo-400" />}
+                  <span>{darkMode ? 'Light Canvas' : 'Dark Canvas'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

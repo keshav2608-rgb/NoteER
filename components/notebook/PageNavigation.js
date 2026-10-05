@@ -131,7 +131,7 @@ export default function PageNavigation({
           </button>
 
           {showBgMenu && (
-            <div className="absolute bottom-full mb-2 right-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-sheet w-36 flex flex-col gap-0.5 z-40 animate-in fade-in zoom-in-95">
+            <div className="absolute top-full mt-1.5 right-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-1.5 shadow-xl w-36 flex flex-col gap-0.5 z-50 animate-in fade-in zoom-in-95">
               {backgrounds.map((bg) => (
                 <button
                   key={bg.type}

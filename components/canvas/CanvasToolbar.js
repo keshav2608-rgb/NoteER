@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import {
   Pen,
@@ -68,6 +68,13 @@ const OPACITY_PRESETS = [
   { label: '25%', value: 0.25 }
 ];
 
+const SHAPE_TOOLS = [
+  { id: 'rect', label: 'Rectangle', icon: Square },
+  { id: 'circle', label: 'Circle', icon: Circle },
+  { id: 'line', label: 'Line', icon: Minus },
+  { id: 'arrow', label: 'Arrow', icon: MoveRight }
+];
+
 export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
   const {
     tool,
@@ -91,8 +98,33 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
 
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showShapePicker, setShowShapePicker] = useState(false);
+  const [selectedShape, setSelectedShape] = useState('rect');
 
-  const isShapeTool = ['rect', 'circle', 'line', 'arrow'].includes(tool);
+  const shapePickerRef = useRef(null);
+  const settingsRef = useRef(null);
+
+  const isShapeTool = ['rect', 'rectangle', 'circle', 'line', 'arrow'].includes(tool);
+
+  // Sync selected shape when tool changes to a shape
+  useEffect(() => {
+    if (['rect', 'rectangle', 'circle', 'line', 'arrow'].includes(tool)) {
+      setSelectedShape(tool === 'rectangle' ? 'rect' : tool);
+    }
+  }, [tool]);
+
+  // Click outside listener to dismiss popovers
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (shapePickerRef.current && !shapePickerRef.current.contains(e.target)) {
+        setShowShapePicker(false);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setShowSettingsPopover(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
+  }, []);
 
   // Automatically adjust tool defaults when switching to highlighter
   const handleSelectTool = (newTool) => {
@@ -102,18 +134,52 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
     }
   };
 
+  const CurrentShapeIcon = SHAPE_TOOLS.find(s => s.id === (isShapeTool ? (tool === 'rectangle' ? 'rect' : tool) : selectedShape))?.icon || Square;
+
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 max-w-[96vw]">
+    <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-2 max-w-[calc(100vw-16px)] sm:max-w-[96vw]">
       {/* Floating Toolbar Pill */}
-      <div className="flex items-center gap-1 sm:gap-1.5 p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-canvas select-none overflow-x-auto no-scrollbar max-w-full">
+      <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-canvas select-none overflow-x-auto no-scrollbar max-w-full touch-pan-x">
         
+        {/* Draw vs Type Mode Toggle */}
+        <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl mr-0.5 sm:mr-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (tool === 'text') setTool('pen');
+            }}
+            title="Draw Mode: Draw freehand or geometric shapes"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              tool !== 'text'
+                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Pen className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Draw</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTool('text')}
+            title="Type Note Mode: Click anywhere on canvas to write notes"
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold transition-all ${
+              tool === 'text'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <Type className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Type Note</span>
+          </button>
+        </div>
+
         {/* Drawing Tools Group */}
-        <div className="flex items-center gap-0.5 sm:gap-1 pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-0.5 sm:gap-1 pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={() => handleSelectTool('pen')}
             title="Pen (Natural Ink)"
-            className={`p-2 rounded-xl transition-all ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-all ${
               tool === 'pen'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -126,7 +192,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             type="button"
             onClick={() => handleSelectTool('pencil')}
             title="Pencil (Graphite Sketch)"
-            className={`p-2 rounded-xl transition-all ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-all ${
               tool === 'pencil'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -139,7 +205,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             type="button"
             onClick={() => handleSelectTool('highlighter')}
             title="Highlighter"
-            className={`p-2 rounded-xl transition-all ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-all ${
               tool === 'highlighter'
                 ? 'bg-amber-500 text-white shadow-sm'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -152,7 +218,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             type="button"
             onClick={() => handleSelectTool('eraser')}
             title="Eraser (Erase entire strokes / shapes)"
-            className={`p-2 rounded-xl transition-all ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-all ${
               tool === 'eraser'
                 ? 'bg-rose-600 text-white shadow-sm'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -163,85 +229,74 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         </div>
 
         {/* Shapes Menu Group */}
-        <div className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => {
-              setShowShapePicker(!showShapePicker);
-              setShowSettingsPopover(false);
-            }}
-            title="Geometric Shapes (Rectangle, Circle, Line, Arrow)"
-            className={`p-2 rounded-xl transition-all flex items-center gap-1 ${
-              isShapeTool
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            {tool === 'circle' && <Circle className="w-4 h-4" />}
-            {tool === 'line' && <Minus className="w-4 h-4" />}
-            {tool === 'arrow' && <MoveRight className="w-4 h-4" />}
-            {(tool === 'rect' || !isShapeTool) && <Square className="w-4 h-4" />}
-            <ChevronDown className="w-3 h-3 opacity-60" />
-          </button>
+        <div ref={shapePickerRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
+          <div className={`flex items-center rounded-xl transition-all ${isShapeTool ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+            <button
+              type="button"
+              onClick={() => {
+                if (!isShapeTool) {
+                  setTool(selectedShape);
+                } else {
+                  setShowShapePicker(!showShapePicker);
+                }
+                setShowSettingsPopover(false);
+              }}
+              title="Shape Tool (Click to draw, click arrow to change shape)"
+              className="p-1.5 sm:p-2 pr-0.5 rounded-l-xl flex items-center"
+            >
+              <CurrentShapeIcon className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowShapePicker(!showShapePicker);
+                setShowSettingsPopover(false);
+              }}
+              title="Choose Shape (Rectangle, Circle, Line, Arrow)"
+              className="p-1.5 sm:p-2 pl-0.5 pr-1.5 rounded-r-xl opacity-75 hover:opacity-100"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </button>
+          </div>
 
           {showShapePicker && (
-            <div className="absolute bottom-full mb-3 left-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-sheet flex items-center gap-1 animate-in fade-in zoom-in-95 z-40">
-              <button
-                type="button"
-                onClick={() => { setTool('rect'); setShowShapePicker(false); }}
-                className={`p-2 rounded-xl transition-colors ${tool === 'rect' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
-                title="Rectangle"
-              >
-                <Square className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => { setTool('circle'); setShowShapePicker(false); }}
-                className={`p-2 rounded-xl transition-colors ${tool === 'circle' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
-                title="Circle / Ellipse"
-              >
-                <Circle className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => { setTool('line'); setShowShapePicker(false); }}
-                className={`p-2 rounded-xl transition-colors ${tool === 'line' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
-                title="Line"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => { setTool('arrow'); setShowShapePicker(false); }}
-                className={`p-2 rounded-xl transition-colors ${tool === 'arrow' ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}
-                title="Arrow"
-              >
-                <MoveRight className="w-4 h-4" />
-              </button>
+            <div className="absolute bottom-full mb-3 left-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1 animate-in fade-in zoom-in-95 z-50">
+              {SHAPE_TOOLS.map((s) => {
+                const Icon = s.icon;
+                const isActive = (isShapeTool && (tool === s.id || (tool === 'rectangle' && s.id === 'rect'))) || selectedShape === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedShape(s.id);
+                      setTool(s.id);
+                      setShowShapePicker(false);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    title={s.label}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="text-[11px] font-medium hidden sm:inline">{s.label}</span>
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
-        {/* Text Note & Pan Hand */}
-        <div className="flex items-center gap-0.5 sm:gap-1 pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={() => setTool('text')}
-            title="Sticky Text Note"
-            className={`p-2 rounded-xl transition-all ${
-              tool === 'text'
-                ? 'bg-indigo-600 text-white shadow-sm'
-                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-            }`}
-          >
-            <Type className="w-4 h-4" />
-          </button>
-
+        {/* Pan Hand */}
+        <div className="flex items-center gap-0.5 sm:gap-1 pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={() => setTool('pan')}
             title="Hand / Pan Canvas (or hold Spacebar)"
-            className={`p-2 rounded-xl transition-all ${
+            className={`p-1.5 sm:p-2 rounded-xl transition-all ${
               tool === 'pan'
                 ? 'bg-indigo-600 text-white shadow-sm'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
@@ -251,34 +306,62 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
           </button>
         </div>
 
-        {/* Direct Quick Color Swatches directly visible on Toolbar */}
-        <div className="hidden sm:flex items-center gap-1 px-1 border-r border-slate-200 dark:border-slate-800">
-          {QUICK_COLORS.map((c) => {
-            const isSelected = color.toLowerCase() === c.toLowerCase();
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                title={`Color: ${c}`}
-                className={`w-5 h-5 rounded-full transition-transform border border-slate-300 dark:border-slate-600 shadow-2xs ${
-                  isSelected ? 'scale-125 ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900' : 'hover:scale-110'
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            );
-          })}
+        {/* Direct Quick Color Swatches + Rainbow Multicolor Picker */}
+        <div className="flex items-center gap-1 px-1 border-r border-slate-200 dark:border-slate-800 shrink-0">
+          <div className="hidden sm:flex items-center gap-1">
+            {QUICK_COLORS.map((c) => {
+              const isSelected = color.toLowerCase() === c.toLowerCase();
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  title={`Color: ${c}`}
+                  className={`w-5 h-5 rounded-full transition-transform border border-slate-300 dark:border-slate-600 shadow-2xs ${
+                    isSelected ? 'scale-125 ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900' : 'hover:scale-110'
+                  }`}
+                  style={{ backgroundColor: c }}
+                />
+              );
+            })}
+          </div>
+
+          {/* Dedicated Rainbow Multicolor Picker Button directly on toolbar */}
+          <label
+            className="relative flex items-center justify-center cursor-pointer p-0.5"
+            title="Rainbow Multicolor Picker (Click to choose any color)"
+          >
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
+              title="Custom Color Picker"
+            />
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-transform shadow-2xs ${
+                !QUICK_COLORS.some((c) => c.toLowerCase() === color.toLowerCase())
+                  ? 'scale-110 ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 border-white'
+                  : 'border-slate-300 dark:border-slate-600 bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500 hover:scale-110'
+              }`}
+              style={{
+                backgroundColor: !QUICK_COLORS.some((c) => c.toLowerCase() === color.toLowerCase()) ? color : undefined
+              }}
+            >
+              <Palette className="w-3.5 h-3.5 text-white drop-shadow-sm pointer-events-none" />
+            </div>
+          </label>
         </div>
 
         {/* Color & Stroke Customization Popover Button */}
-        <div className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800">
+        <div ref={settingsRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={() => {
               setShowSettingsPopover(!showSettingsPopover);
               setShowShapePicker(false);
             }}
-            title="Color Palette, Stroke Width, Opacity & Fill"
+            title="Stroke Thickness, Opacity & Fill Options"
             className="flex items-center gap-1.5 p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             {/* Active Color dot preview */}
@@ -309,12 +392,11 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
                       type="color"
                       value={color}
                       onChange={(e) => setColor(e.target.value)}
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-pointer z-10"
                       title="Custom Color Picker"
                     />
                     <div
-                      className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600 shadow-sm flex items-center justify-center"
-                      style={{ backgroundColor: color }}
+                      className="w-6 h-6 rounded-full border-2 border-slate-300 dark:border-slate-600 shadow-sm flex items-center justify-center bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500"
                     >
                       <Palette className="w-3 h-3 text-white drop-shadow-sm pointer-events-none" />
                     </div>
@@ -439,7 +521,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setFillColor(color + '33')} // 20% opacity hex
+                      onClick={() => setFillColor(color + '33')}
                       className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
                         fillColor?.length === 9
                           ? 'bg-indigo-600 text-white'
@@ -456,13 +538,13 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         </div>
 
         {/* Undo / Redo */}
-        <div className="flex items-center gap-0.5 pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-0.5 pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
             onClick={onUndo}
             disabled={!canEdit || undoStack.length === 0}
             title="Undo (Ctrl+Z)"
-            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <Undo2 className="w-4 h-4" />
           </button>
@@ -472,20 +554,20 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             onClick={onRedo}
             disabled={!canEdit || redoStack.length === 0}
             title="Redo (Ctrl+Y or Ctrl+Shift+Z)"
-            className="p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <Redo2 className="w-4 h-4" />
           </button>
         </div>
 
         {/* Zoom Controls */}
-        <div className="flex items-center gap-0.5 sm:gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
           <button
             type="button"
             onClick={() => setZoom(zoom - 0.15)}
             disabled={zoom <= 0.25}
             title="Zoom Out"
-            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 transition-colors"
+            className="p-1 sm:p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 transition-colors"
           >
             <ZoomOut className="w-3.5 h-3.5" />
           </button>
@@ -494,7 +576,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             type="button"
             onClick={resetView}
             title="Reset View (100%)"
-            className="text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 min-w-[40px] text-center transition-colors"
+            className="text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white px-1 sm:px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 min-w-[36px] sm:min-w-[40px] text-center transition-colors"
           >
             {Math.round(zoom * 100)}%
           </button>
@@ -504,7 +586,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             onClick={() => setZoom(zoom + 0.15)}
             disabled={zoom >= 4.0}
             title="Zoom In"
-            className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 transition-colors"
+            className="p-1 sm:p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white disabled:opacity-30 transition-colors"
           >
             <ZoomIn className="w-3.5 h-3.5" />
           </button>
@@ -514,7 +596,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               type="button"
               onClick={onClear}
               title="Clear Canvas"
-              className="p-2 ml-0.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+              className="p-1.5 sm:p-2 ml-0.5 rounded-xl text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
             >
               <Trash2 className="w-4 h-4" />
             </button>
