@@ -48,6 +48,33 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Visible Top Scrollbar for Mobile / Small Screens */
+.top-header-scroll {
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.6) rgba(148, 163, 184, 0.15);
+}
+
+.top-header-scroll::-webkit-scrollbar {
+  height: 5px;
+}
+
+.top-header-scroll::-webkit-scrollbar-track {
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 9999px;
+}
+
+.top-header-scroll::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.6);
+  border-radius: 9999px;
+}
+
+.top-header-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.9);
+}
+
 /* Notebook Canvas Paper Background Styles (Light Mode) */
 .canvas-bg-blank {
   background-color: #ffffff;

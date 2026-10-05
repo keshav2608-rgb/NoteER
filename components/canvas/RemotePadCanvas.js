@@ -9,6 +9,7 @@ import {
   hitTestStroke,
   hitTestShape
 } from '@/lib/drawing/engine';
+import MiniMap from './MiniMap';
 import {
   Pen,
   Pencil,
@@ -1068,6 +1069,18 @@ export default function RemotePadCanvas({
             <Plus className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        {/* Interactive Canvas MiniMap on Connected Device */}
+        <MiniMap
+          documentState={documentState}
+          containerRef={containerRef}
+          zoomOverride={zoom}
+          panXOverride={pan.x}
+          panYOverride={pan.y}
+          setPanOverride={(nx, ny) => setPan({ x: nx, y: ny })}
+          resetViewOverride={handleResetView}
+          isRemotePad={true}
+        />
       </div>
 
       {/* Touch-Optimized Ergonomic Bottom Dock */}

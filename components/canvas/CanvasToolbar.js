@@ -98,10 +98,12 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
 
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   const [showShapePicker, setShowShapePicker] = useState(false);
+  const [showThicknessPopover, setShowThicknessPopover] = useState(false);
   const [selectedShape, setSelectedShape] = useState('rect');
 
   const shapePickerRef = useRef(null);
   const settingsRef = useRef(null);
+  const thicknessRef = useRef(null);
 
   const isShapeTool = ['rect', 'rectangle', 'circle', 'line', 'arrow'].includes(tool);
 
@@ -120,6 +122,9 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
       }
       if (settingsRef.current && !settingsRef.current.contains(e.target)) {
         setShowSettingsPopover(false);
+      }
+      if (thicknessRef.current && !thicknessRef.current.contains(e.target)) {
+        setShowThicknessPopover(false);
       }
     };
     document.addEventListener('pointerdown', handleClickOutside);
@@ -351,6 +356,73 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               <Palette className="w-3.5 h-3.5 text-white drop-shadow-sm pointer-events-none" />
             </div>
           </label>
+        </div>
+
+        {/* Dedicated Stroke Thickness Button & Popover on Toolbar */}
+        <div ref={thicknessRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setShowThicknessPopover(!showThicknessPopover);
+              setShowSettingsPopover(false);
+              setShowShapePicker(false);
+            }}
+            title="Stroke Thickness"
+            className="flex items-center gap-1.5 p-1.5 sm:px-2 sm:py-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors"
+          >
+            <div
+              className="rounded-full bg-slate-800 dark:bg-slate-200"
+              style={{ width: Math.max(Math.min(strokeWidth, 16), 4), height: Math.max(Math.min(strokeWidth, 16), 4) }}
+            />
+            <span className="text-xs font-mono font-semibold">{strokeWidth}px</span>
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </button>
+
+          {showThicknessPopover && (
+            <div className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 w-60 z-50 text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Stroke Thickness
+                </span>
+                <span className="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                  {strokeWidth}px
+                </span>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="grid grid-cols-5 gap-1">
+                {STROKE_WIDTHS.map((sw) => (
+                  <button
+                    key={sw.value}
+                    type="button"
+                    onClick={() => {
+                      setStrokeWidth(sw.value);
+                      setShowThicknessPopover(false);
+                    }}
+                    className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                      strokeWidth === sw.value
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {sw.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Interactive Range Slider */}
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="range"
+                  min="1"
+                  max="36"
+                  value={strokeWidth}
+                  onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                  className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Color & Stroke Customization Popover Button */}

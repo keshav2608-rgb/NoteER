@@ -302,16 +302,17 @@ export default function DrawingCanvas({
 
     if (readOnly || !canEdit) return;
 
-    // Text note creation
+    // Text note creation directly on canvas
     if (tool === 'text') {
+      const textColor = darkMode ? '#f8fafc' : (color === '#ffffff' || color === '#f8fafc' ? '#0f172a' : color || '#0f172a');
       const newBlock = {
         id: 'txt_' + Math.random().toString(36).substring(2, 10),
         x: Math.round(world.x),
         y: Math.round(world.y),
-        width: 260,
+        width: 320,
         text: '',
-        color: '#fffbeb',
-        borderColor: '#fef08a'
+        color: textColor,
+        fontSize: Math.max(16, strokeWidth * 3)
       };
       onSendOp({ type: 'text:update', textBlock: newBlock });
       return;
@@ -466,7 +467,7 @@ export default function DrawingCanvas({
     if (currentPointsRef.current.length > 0) {
       const simplified = simplifyPoints(currentPointsRef.current, 1.2);
       const isHighlighter = tool === 'highlighter';
-      const effectiveWidth = isHighlighter ? Math.max(strokeWidth, 18) : strokeWidth;
+      const effectiveWidth = strokeWidth;
       const effectiveOpacity = isHighlighter ? 0.35 : opacity;
 
       const stroke = {
@@ -498,7 +499,7 @@ export default function DrawingCanvas({
     ctx.scale(zoom, zoom);
 
     const isHighlighter = tool === 'highlighter';
-    const effectiveWidth = isHighlighter ? Math.max(strokeWidth, 18) : strokeWidth;
+    const effectiveWidth = strokeWidth;
     const effectiveOpacity = isHighlighter ? 0.35 : opacity;
 
     renderStroke(ctx, {

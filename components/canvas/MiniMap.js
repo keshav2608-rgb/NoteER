@@ -1,18 +1,37 @@
 'use client';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
-import { Map, Minimize2, Maximize2, Crosshair, ChevronDown, ChevronUp } from 'lucide-react';
+import { Map, Crosshair, ChevronDown, ChevronUp, Tablet, Laptop, Users } from 'lucide-react';
 
-export default function MiniMap({ documentState, containerRef }) {
-  const { zoom, panX, panY, setPan, resetView, darkMode } = useNotebookStore();
+export default function MiniMap({
+  documentState,
+  containerRef,
+  zoomOverride,
+  panXOverride,
+  panYOverride,
+  setPanOverride,
+  resetViewOverride,
+  peersOverride,
+  isRemotePad = false
+}) {
+  const store = useNotebookStore();
+  const zoom = zoomOverride ?? store.zoom;
+  const panX = panXOverride ?? store.panX;
+  const panY = panYOverride ?? store.panY;
+  const setPan = setPanOverride ?? store.setPan;
+  const resetView = resetViewOverride ?? store.resetView;
+  const darkMode = store.darkMode;
+  const peers = peersOverride ?? store.peers;
+  const tabletConnected = store.tabletConnected;
+
   const canvasRef = useRef(null);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false); // start collapsed on small/remote devices or toggleable
   const [isDragging, setIsDragging] = useState(false);
 
   const MAP_WIDTH = 160;
   const MAP_HEIGHT = 110;
 
-  // Redraw minimap when strokes, shapes, pan, or zoom change
+  // Redraw minimap when strokes, shapes, pan, zoom, or connected devices change
   const drawMiniMap = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef?.current;
@@ -28,14 +47,14 @@ export default function MiniMap({ documentState, containerRef }) {
     const viewWorldRight = (-panX + containerW) / zoom;
     const viewWorldBottom = (-panY + containerH) / zoom;
 
-    // Compute bounding box incorporating standard page bounds, content, and current camera
+    // Compute bounding box incorporating standard page bounds, content, camera, and connected devices
     let minX = Math.min(-800, viewWorldLeft - 100);
     let maxX = Math.max(1200, viewWorldRight + 100);
     let minY = Math.min(-600, viewWorldTop - 100);
     let maxY = Math.max(1200, viewWorldBottom + 100);
 
     // Expand bounding box with strokes
-    if (documentState.strokes) {
+    if (documentState?.strokes) {
       for (const stroke of documentState.strokes) {
         for (const pt of stroke.points || []) {
           if (pt.x < minX) minX = pt.x - 50;
@@ -47,7 +66,7 @@ export default function MiniMap({ documentState, containerRef }) {
     }
 
     // Expand with shapes
-    if (documentState.shapes) {
+    if (documentState?.shapes) {
       for (const shape of documentState.shapes) {
         const sx = Math.min(shape.startX, shape.endX);
         const ex = Math.max(shape.startX, shape.endX);
@@ -57,6 +76,18 @@ export default function MiniMap({ documentState, containerRef }) {
         if (ex > maxX) maxX = ex + 50;
         if (sy < minY) minY = sy - 50;
         if (ey > maxY) maxY = ey + 50;
+      }
+    }
+
+    // Expand with connected peers / tablet cursors
+    if (Array.isArray(peers)) {
+      for (const p of peers) {
+        if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
+          if (p.cursor.x < minX) minX = p.cursor.x - 50;
+          if (p.cursor.x > maxX) maxX = p.cursor.x + 50;
+          if (p.cursor.y < minY) minY = p.cursor.y - 50;
+          if (p.cursor.y > maxY) maxY = p.cursor.y + 50;
+        }
       }
     }
 
@@ -77,7 +108,7 @@ export default function MiniMap({ documentState, containerRef }) {
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
     // Render strokes in miniature
-    if (documentState.strokes) {
+    if (documentState?.strokes) {
       for (const stroke of documentState.strokes) {
         const pts = stroke.points;
         if (!pts || pts.length === 0) continue;
@@ -97,7 +128,7 @@ export default function MiniMap({ documentState, containerRef }) {
     }
 
     // Render shapes in miniature
-    if (documentState.shapes) {
+    if (documentState?.shapes) {
       for (const shape of documentState.shapes) {
         const p1 = worldToMap(shape.startX, shape.startY);
         const p2 = worldToMap(shape.endX, shape.endY);
@@ -126,7 +157,7 @@ export default function MiniMap({ documentState, containerRef }) {
       }
     }
 
-    // Viewport Rectangle indicator
+    // Live Camera Viewport Box
     const vpTopLeft = worldToMap(viewWorldLeft, viewWorldTop);
     const vpBottomRight = worldToMap(viewWorldRight, viewWorldBottom);
     const vpW = Math.max(vpBottomRight.x - vpTopLeft.x, 6);
@@ -140,9 +171,42 @@ export default function MiniMap({ documentState, containerRef }) {
     ctx.strokeRect(vpTopLeft.x, vpTopLeft.y, vpW, vpH);
     ctx.restore();
 
+    // Render Connected Devices / Peers Live Position
+    if (Array.isArray(peers)) {
+      for (const p of peers) {
+        if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
+          const cp = worldToMap(p.cursor.x, p.cursor.y);
+          const isTabletDevice = p.isTablet;
+          const peerColor = isTabletDevice ? '#10b981' : '#3b82f6';
+
+          ctx.save();
+          // Pulsing halo
+          ctx.beginPath();
+          ctx.arc(cp.x, cp.y, 6, 0, Math.PI * 2);
+          ctx.fillStyle = isTabletDevice ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+          ctx.fill();
+
+          // Dot marker
+          ctx.beginPath();
+          ctx.arc(cp.x, cp.y, 3, 0, Math.PI * 2);
+          ctx.fillStyle = peerColor;
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          // Device Tag
+          ctx.fillStyle = darkMode ? '#ffffff' : '#0f172a';
+          ctx.font = 'bold 8px system-ui, sans-serif';
+          ctx.fillText(isTabletDevice ? '📱 Tablet' : (p.user?.name || '💻 Peer'), cp.x + 5, cp.y + 3);
+          ctx.restore();
+        }
+      }
+    }
+
     // Store coordinate transform bounds on canvas for click/drag mapping
     canvas._miniMapBounds = { minX, minY, boundW, boundH, scale, containerW, containerH };
-  }, [documentState, panX, panY, zoom, containerRef, isExpanded, darkMode]);
+  }, [documentState, panX, panY, zoom, containerRef, isExpanded, darkMode, peers]);
 
   useEffect(() => {
     drawMiniMap();
@@ -190,10 +254,12 @@ export default function MiniMap({ documentState, containerRef }) {
     }
   };
 
+  const activeConnectedCount = (Array.isArray(peers) ? peers.filter(p => p.cursor) : []).length;
+
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className="fixed bottom-20 right-4 z-20 flex flex-col items-end gap-1.5 select-none"
+      className={`fixed ${isRemotePad ? 'bottom-24 right-3' : 'bottom-20 right-4'} z-20 flex flex-col items-end gap-1.5 select-none`}
     >
       {/* Floating Toggle Button */}
       <button
@@ -204,12 +270,28 @@ export default function MiniMap({ documentState, containerRef }) {
       >
         <Map className="w-3.5 h-3.5 text-indigo-500" />
         <span className="hidden sm:inline">Minimap</span>
+        {(tabletConnected || activeConnectedCount > 0) && (
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Connected device active" />
+        )}
         {isExpanded ? <ChevronDown className="w-3 h-3 opacity-60" /> : <ChevronUp className="w-3 h-3 opacity-60" />}
       </button>
 
       {/* Expanded Minimap Viewport Card */}
       {isExpanded && (
         <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-2 animate-in fade-in zoom-in-95 flex flex-col gap-1.5">
+          {/* Header indicator showing connected devices */}
+          <div className="flex items-center justify-between px-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+            <span className="flex items-center gap-1">
+              <Users className="w-3 h-3 text-indigo-500" />
+              {tabletConnected ? 'PC + Tablet Paired' : 'Canvas Map'}
+            </span>
+            {tabletConnected && (
+              <span className="text-emerald-500 font-semibold flex items-center gap-0.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Live
+              </span>
+            )}
+          </div>
+
           <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-crosshair">
             <canvas
               ref={canvasRef}

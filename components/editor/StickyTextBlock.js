@@ -1,17 +1,42 @@
 'use client';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, Move } from 'lucide-react';
 
 export default function StickyTextBlock({ block, onUpdate, onDelete, zoom, panX, panY }) {
-  const { canEdit } = useNotebookStore();
+  const { canEdit, darkMode } = useNotebookStore();
+  const [isFocused, setIsFocused] = useState(!block.text);
+  const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const textareaRef = useRef(null);
   const dragStartRef = useRef({ mouseX: 0, mouseY: 0, blockX: block.x, blockY: block.y });
 
   const screenX = block.x * zoom + panX;
   const screenY = block.y * zoom + panY;
 
-  const handlePointerDownHeader = (e) => {
+  // Auto-focus new text block
+  useEffect(() => {
+    if (!block.text && textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  }, [block.text]);
+
+  // Auto-grow textarea height
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.max(28, textareaRef.current.scrollHeight)}px`;
+    }
+  }, [block.text, zoom]);
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    if (!block.text?.trim() && onDelete) {
+      onDelete(block.id);
+    }
+  };
+
+  const handlePointerDownDrag = (e) => {
     if (!canEdit) return;
     e.stopPropagation();
     setIsDragging(true);
@@ -42,51 +67,74 @@ export default function StickyTextBlock({ block, onUpdate, onDelete, zoom, panX,
     window.addEventListener('pointerup', handlePointerUp);
   };
 
+  // Determine textColor
+  let textColor = block.color;
+  if (!textColor || textColor === '#fffbeb' || textColor === '#fef08a') {
+    textColor = darkMode ? '#f8fafc' : '#0f172a';
+  }
+
+  const baseFontSize = block.fontSize || 16;
+  const scaledFontSize = Math.max(12, baseFontSize * zoom);
+
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className={`absolute z-10 rounded-xl shadow-sheet border transition-shadow ${
-        isDragging ? 'shadow-2xl ring-2 ring-indigo-500 cursor-grabbing' : 'hover:shadow-md'
-      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="absolute z-10 group"
       style={{
         transform: `translate3d(${screenX}px, ${screenY}px, 0)`,
-        width: `${(block.width || 260) * zoom}px`,
-        backgroundColor: block.color || '#fffbeb',
-        borderColor: block.borderColor || '#fef08a'
+        width: `${Math.max(140, (block.width || 320) * zoom)}px`
       }}
     >
-      {/* Header bar with drag handle and delete */}
-      <div
-        onPointerDown={handlePointerDownHeader}
-        className="flex items-center justify-between px-2.5 py-1.5 cursor-grab border-b border-black/5 select-none"
-      >
-        <div className="flex items-center gap-1 text-slate-500">
-          <GripVertical className="w-3.5 h-3.5" />
-          <span className="text-[11px] font-semibold uppercase tracking-wider">Note</span>
-        </div>
-
-        {canEdit && (
+      {/* Subtle reposition & delete controls shown only on hover */}
+      {canEdit && (isHovered || isDragging) && (
+        <div className="absolute -top-7 left-0 flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-lg px-1.5 py-0.5 shadow-sm text-slate-500 z-20 animate-in fade-in duration-100">
+          <button
+            type="button"
+            onPointerDown={handlePointerDownDrag}
+            title="Drag to reposition text"
+            className="p-1 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing"
+          >
+            <Move className="w-3 h-3" />
+          </button>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onDelete(block.id);
             }}
-            className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition-colors"
+            title="Delete text"
+            className="p-1 hover:text-rose-600"
           >
             <Trash2 className="w-3 h-3" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Text area */}
+      {/* Seamless in-canvas text (no card box, no background, no border) */}
       <textarea
+        ref={textareaRef}
         value={block.text || ''}
         readOnly={!canEdit}
+        onFocus={() => setIsFocused(true)}
+        onBlur={handleBlur}
         onChange={(e) => onUpdate({ ...block, text: e.target.value })}
-        placeholder="Type notebook notes here..."
-        className="w-full h-28 p-2.5 bg-transparent resize-none focus:outline-none text-slate-800 text-sm leading-relaxed"
-        style={{ fontSize: `${13 * zoom}px` }}
+        placeholder={isFocused ? 'Type note...' : ''}
+        rows={1}
+        className={`w-full bg-transparent resize-none p-1 focus:outline-none font-sans leading-relaxed transition-all ${
+          isFocused
+            ? 'ring-1 ring-indigo-400/50 rounded-sm bg-indigo-50/5 dark:bg-indigo-950/10'
+            : isHovered
+            ? 'ring-1 ring-slate-300/40 dark:ring-slate-700/40 rounded-sm'
+            : 'border-0'
+        }`}
+        style={{
+          color: textColor,
+          fontSize: `${scaledFontSize}px`,
+          lineHeight: 1.45,
+          caretColor: textColor
+        }}
       />
     </div>
   );
