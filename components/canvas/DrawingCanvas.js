@@ -618,21 +618,29 @@ export default function DrawingCanvas({
       {/* Draft Canvas: Active drawing stroke in progress */}
       <canvas ref={draftCanvasRef} className="absolute inset-0 pointer-events-none" />
 
-      {/* Sticky Text Blocks */}
-      {documentState.textBlocks?.map((block) => (
-        <StickyTextBlock
-          key={block.id}
-          block={block}
-          zoom={zoom}
-          panX={panX}
-          panY={panY}
-          onUpdate={(updated) => onSendOp({ type: 'text:update', textBlock: updated })}
-          onDelete={(id) => onSendOp({
-            type: 'text:update',
-            textBlock: { id, deleted: true }
-          })}
-        />
-      ))}
+      {/* World-space Canvas Viewport Layer: Transforms all in-canvas HTML elements in 100% exact sync with 2D canvas */}
+      <div
+        className="absolute inset-0 pointer-events-none origin-top-left overflow-visible"
+        style={{
+          transform: `translate3d(${panX}px, ${panY}px, 0) scale(${zoom})`,
+          transformOrigin: '0 0'
+        }}
+      >
+        {documentState.textBlocks?.map((block) => (
+          <StickyTextBlock
+            key={block.id}
+            block={block}
+            zoom={zoom}
+            panX={panX}
+            panY={panY}
+            onUpdate={(updated) => onSendOp({ type: 'text:update', textBlock: updated })}
+            onDelete={(id) => onSendOp({
+              type: 'text:update',
+              textBlock: { id, deleted: true }
+            })}
+          />
+        ))}
+      </div>
 
       {/* Remote Users Live Cursors */}
       <LiveCursorOverlay />

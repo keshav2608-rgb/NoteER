@@ -7,23 +7,24 @@ export default function StickyTextBlock({
   block,
   onUpdate,
   onDelete,
-  zoom,
-  panX,
-  panY,
+  zoom = 1,
+  panX = 0,
+  panY = 0,
   isDarkModeOverride,
-  canEditOverride
+  canEditOverride,
+  toolOverride
 }) {
   const storeState = useNotebookStore();
   const canEdit = canEditOverride !== undefined ? canEditOverride : storeState.canEdit;
   const darkMode = isDarkModeOverride !== undefined ? isDarkModeOverride : storeState.darkMode;
+  const currentTool = toolOverride !== undefined ? toolOverride : storeState.tool;
+  const isPanMode = currentTool === 'pan' || currentTool === 'hand';
+
   const [isFocused, setIsFocused] = useState(!block.text);
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef(null);
-  const dragStartRef = useRef({ mouseX: 0, mouseY: 0, blockX: block.x, blockY: block.y });
-
-  const screenX = block.x * zoom + panX;
-  const screenY = block.y * zoom + panY;
+  const dragStartRef = useRef({ startX: 0, startY: 0, initialBlockX: block.x, initialBlockY: block.y });
 
   // Auto-focus new text block
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function StickyTextBlock({
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.max(28, textareaRef.current.scrollHeight)}px`;
     }
-  }, [block.text, zoom]);
+  }, [block.text]);
 
   const handleBlur = () => {
     setIsFocused(false);
@@ -47,35 +48,42 @@ export default function StickyTextBlock({
     }
   };
 
-  const handlePointerDownDrag = (e) => {
+  // Pointer drag handler with pointer capture (works for both mouse and touch/stylus)
+  const handleDragPointerDown = (e) => {
     if (!canEdit) return;
     e.stopPropagation();
+    try {
+      e.target.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
     setIsDragging(true);
     dragStartRef.current = {
-      mouseX: e.clientX,
-      mouseY: e.clientY,
-      blockX: block.x,
-      blockY: block.y
+      startX: e.clientX,
+      startY: e.clientY,
+      initialBlockX: block.x,
+      initialBlockY: block.y
     };
+  };
 
-    const handlePointerMove = (moveEvent) => {
-      const dx = (moveEvent.clientX - dragStartRef.current.mouseX) / zoom;
-      const dy = (moveEvent.clientY - dragStartRef.current.mouseY) / zoom;
-      onUpdate({
-        ...block,
-        x: Math.round(dragStartRef.current.blockX + dx),
-        y: Math.round(dragStartRef.current.blockY + dy)
-      });
-    };
+  const handleDragPointerMove = (e) => {
+    if (!isDragging) return;
+    e.stopPropagation();
+    const dx = (e.clientX - dragStartRef.current.startX) / zoom;
+    const dy = (e.clientY - dragStartRef.current.startY) / zoom;
+    onUpdate({
+      ...block,
+      x: Math.round(dragStartRef.current.initialBlockX + dx),
+      y: Math.round(dragStartRef.current.initialBlockY + dy)
+    });
+  };
 
-    const handlePointerUp = () => {
+  const handleDragPointerUp = (e) => {
+    if (isDragging) {
+      e.stopPropagation();
       setIsDragging(false);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
+      try {
+        e.target.releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+    }
   };
 
   // Determine textColor
@@ -85,38 +93,50 @@ export default function StickyTextBlock({
   }
 
   const baseFontSize = block.fontSize || 16;
-  const scaledFontSize = Math.max(12, baseFontSize * zoom);
 
   return (
     <div
-      onPointerDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => {
+        if (!isPanMode) {
+          e.stopPropagation();
+        }
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="absolute z-10 group"
+      className={`absolute top-0 left-0 z-10 group select-none transition-shadow ${
+        isPanMode ? 'pointer-events-none' : 'pointer-events-auto'
+      }`}
       style={{
-        transform: `translate3d(${screenX}px, ${screenY}px, 0)`,
-        width: `${Math.max(140, (block.width || 320) * zoom)}px`
+        transform: `translate3d(${block.x}px, ${block.y}px, 0)`,
+        width: `${block.width || 320}px`
       }}
     >
-      {/* Subtle reposition & delete controls shown only on hover */}
-      {canEdit && (isHovered || isDragging) && (
-        <div className="absolute -top-7 left-0 flex items-center gap-1 bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-lg px-1.5 py-0.5 shadow-sm text-slate-500 z-20 animate-in fade-in duration-100">
-          <button
-            type="button"
-            onPointerDown={handlePointerDownDrag}
-            title="Drag to reposition text"
-            className="p-1 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing"
+      {/* Move & Delete controls: visible on hover, focus, or dragging */}
+      {canEdit && (isHovered || isFocused || isDragging) && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute -top-8 left-0 flex items-center gap-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 shadow-md text-slate-500 z-20 animate-in fade-in duration-100 select-none"
+        >
+          <div
+            onPointerDown={handleDragPointerDown}
+            onPointerMove={handleDragPointerMove}
+            onPointerUp={handleDragPointerUp}
+            onPointerCancel={handleDragPointerUp}
+            title="Drag to move note anywhere on canvas"
+            className="flex items-center gap-1 px-1 py-0.5 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing text-[11px] font-medium transition-colors"
           >
-            <Move className="w-3 h-3" />
-          </button>
+            <Move className="w-3 h-3 text-indigo-500" />
+            <span>Move</span>
+          </div>
+          <span className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onDelete(block.id);
             }}
-            title="Delete text"
-            className="p-1 hover:text-rose-600"
+            title="Delete text note"
+            className="p-1 hover:text-rose-600 dark:hover:text-rose-400 transition-colors"
           >
             <Trash2 className="w-3 h-3" />
           </button>
@@ -142,7 +162,7 @@ export default function StickyTextBlock({
         }`}
         style={{
           color: textColor,
-          fontSize: `${scaledFontSize}px`,
+          fontSize: `${baseFontSize}px`,
           lineHeight: 1.45,
           caretColor: textColor
         }}

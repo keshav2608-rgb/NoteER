@@ -79,6 +79,17 @@ export default function MiniMap({
       }
     }
 
+    // Expand with text blocks
+    if (documentState?.textBlocks) {
+      for (const tb of documentState.textBlocks) {
+        const tw = tb.width || 200;
+        if (tb.x < minX) minX = tb.x - 50;
+        if (tb.x + tw > maxX) maxX = tb.x + tw + 50;
+        if (tb.y < minY) minY = tb.y - 50;
+        if (tb.y + 60 > maxY) maxY = tb.y + 100;
+      }
+    }
+
     // Expand with connected peers / tablet cursors
     if (Array.isArray(peers)) {
       for (const p of peers) {
@@ -154,6 +165,16 @@ export default function MiniMap({
           ctx.lineTo(p2.x, p2.y);
           ctx.stroke();
         }
+      }
+    }
+
+    // Render text blocks in miniature
+    if (documentState?.textBlocks) {
+      for (const tb of documentState.textBlocks) {
+        const tp = worldToMap(tb.x, tb.y);
+        const tw = Math.max((tb.width || 200) * scale, 6);
+        ctx.fillStyle = darkMode ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)';
+        ctx.fillRect(tp.x, tp.y, tw, Math.max(4 * scale, 3));
       }
     }
 
