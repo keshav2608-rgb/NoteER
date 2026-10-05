@@ -446,6 +446,7 @@ export default function DrawingCanvas({
       const dx = Math.abs(world.x - shapeStartRef.current.x);
       const dy = Math.abs(world.y - shapeStartRef.current.y);
       if (dx > 4 || dy > 4) {
+        const currentWidth = Number(strokeWidthRef.current) || 3;
         const shape = {
           id: 'shp_' + Math.random().toString(36).substring(2, 10),
           type: tool,
@@ -454,7 +455,7 @@ export default function DrawingCanvas({
           endX: world.x,
           endY: world.y,
           color,
-          width: strokeWidthRef.current,
+          width: currentWidth,
           opacity,
           fillColor
         };
@@ -469,7 +470,8 @@ export default function DrawingCanvas({
     if (currentPointsRef.current.length > 0) {
       const simplified = simplifyPoints(currentPointsRef.current, 1.2);
       const isHighlighter = tool === 'highlighter';
-      const effectiveWidth = isHighlighter ? Math.max(strokeWidthRef.current * 2, 16) : strokeWidthRef.current;
+      const currentWidth = Number(strokeWidthRef.current) || 4;
+      const effectiveWidth = isHighlighter ? Math.max(currentWidth * 2, 16) : currentWidth;
       const effectiveOpacity = isHighlighter ? 0.35 : opacity;
 
       const stroke = {
@@ -501,7 +503,8 @@ export default function DrawingCanvas({
     ctx.scale(zoom, zoom);
 
     const isHighlighter = tool === 'highlighter';
-    const effectiveWidth = isHighlighter ? Math.max(strokeWidthRef.current * 2, 16) : strokeWidthRef.current;
+    const currentWidth = Number(strokeWidthRef.current) || 4;
+    const effectiveWidth = isHighlighter ? Math.max(currentWidth * 2, 16) : currentWidth;
     const effectiveOpacity = isHighlighter ? 0.35 : opacity;
 
     renderStroke(ctx, {
@@ -536,7 +539,7 @@ export default function DrawingCanvas({
       endX: current.x,
       endY: current.y,
       color,
-      width: strokeWidthRef.current,
+      width: Number(strokeWidthRef.current) || 3,
       opacity,
       fillColor
     });

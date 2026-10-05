@@ -164,7 +164,8 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         {showShapePicker && (
           <div
             ref={shapePickerRef}
-            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1 animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 shadow-2xl flex items-center gap-1 animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100 pointer-events-auto"
           >
             {SHAPE_TOOLS.map((s) => {
               const Icon = s.icon;
@@ -197,7 +198,8 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         {showThicknessPopover && (
           <div
             ref={thicknessRef}
-            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-2xl flex flex-col gap-2.5 w-64 max-w-[90vw] z-50 text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-2xl flex flex-col gap-2.5 w-68 max-w-[92vw] z-50 text-slate-900 dark:text-slate-100 animate-in fade-in zoom-in-95 pointer-events-auto"
           >
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -226,13 +228,14 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
                   key={sw.value}
                   type="button"
                   onClick={() => setStrokeWidth(sw.value)}
-                  className={`py-1 text-[11px] rounded-lg font-medium transition-all ${
+                  className={`py-1.5 px-1 rounded-lg font-medium transition-all text-center flex flex-col items-center justify-center ${
                     strokeWidth === sw.value
                       ? 'bg-indigo-600 text-white shadow-xs font-semibold'
                       : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                   }`}
                 >
-                  {sw.label}
+                  <span className="font-bold text-xs leading-none">{sw.value}px</span>
+                  <span className="text-[9px] opacity-75 mt-0.5">{sw.label}</span>
                 </button>
               ))}
             </div>
@@ -242,7 +245,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
               <button
                 type="button"
                 onClick={() => setStrokeWidth(Math.max(1, strokeWidth - 1))}
-                className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors"
+                className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300 transition-colors"
                 title="Decrease thickness by 1px"
               >
                 -
@@ -253,12 +256,13 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
                 max="48"
                 value={strokeWidth}
                 onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                onInput={(e) => setStrokeWidth(Number(e.target.value))}
+                className="w-full accent-indigo-600 cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
               />
               <button
                 type="button"
                 onClick={() => setStrokeWidth(Math.min(48, strokeWidth + 1))}
-                className="w-6 h-6 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors"
+                className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-sm font-bold text-slate-600 dark:text-slate-300 transition-colors"
                 title="Increase thickness by 1px"
               >
                 +
@@ -271,7 +275,8 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         {showSettingsPopover && (
           <div
             ref={settingsRef}
-            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-2xl flex flex-col gap-3.5 w-72 max-w-[90vw] animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-2xl flex flex-col gap-3.5 w-72 max-w-[90vw] animate-in fade-in zoom-in-95 z-50 text-slate-900 dark:text-slate-100 pointer-events-auto"
           >
             {/* Color Header & Native Color Picker */}
             <div className="flex items-center justify-between">
@@ -353,6 +358,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
                 max="48"
                 value={strokeWidth}
                 onChange={(e) => setStrokeWidth(Number(e.target.value))}
+                onInput={(e) => setStrokeWidth(Number(e.target.value))}
                 className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
               />
             </div>
@@ -427,7 +433,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         )}
       </div>
       {/* Floating Toolbar Pill */}
-      <div className="flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-canvas select-none overflow-x-auto no-scrollbar max-w-full touch-pan-x">
+      <div className="pointer-events-auto flex items-center gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-canvas select-none overflow-x-auto no-scrollbar max-w-full touch-pan-x">
         
         {/* Draw vs Type Mode Toggle */}
         <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl mr-0.5 sm:mr-1 shrink-0">
@@ -517,11 +523,11 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         </div>
 
         {/* Shapes Menu Group */}
-        {/* Shapes Menu Group */}
         <div ref={shapeBtnRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <div className={`flex items-center rounded-xl transition-all ${isShapeTool ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={() => {
                 if (!isShapeTool) {
                   setTool(selectedShape);
@@ -538,6 +544,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
             </button>
             <button
               type="button"
+              onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation();
                 setShowShapePicker(!showShapePicker);
@@ -619,6 +626,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         <div ref={thicknessBtnRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
               setShowThicknessPopover(!showThicknessPopover);
               setShowSettingsPopover(false);
@@ -644,6 +652,7 @@ export default function CanvasToolbar({ onUndo, onRedo, onClear }) {
         <div ref={settingsBtnRef} className="relative flex items-center pr-1 sm:pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
           <button
             type="button"
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
               setShowSettingsPopover(!showSettingsPopover);
               setShowThicknessPopover(false);
