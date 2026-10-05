@@ -49,15 +49,25 @@ export default function DrawingCanvas({
   const panStartRef = useRef(null);
   const spacePressedRef = useRef(false);
 
-  // Handle Spacebar pan shortcut and Escape to deselect text mode
+  // Handle keyboard shortcuts (Space for pan, V for select, P for pen, T for text, etc.)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
         if (e.code === 'Space' && !spacePressedRef.current) {
           spacePressedRef.current = true;
         }
-        if (e.key === 'Escape' && tool === 'text') {
+        if (e.key === 'Escape') {
+          setTool('select');
+        } else if (e.key.toLowerCase() === 'v' || e.key.toLowerCase() === 's') {
+          setTool('select');
+        } else if (e.key.toLowerCase() === 'p' || e.key.toLowerCase() === 'd') {
           setTool('pen');
+        } else if (e.key.toLowerCase() === 't') {
+          setTool('text');
+        } else if (e.key.toLowerCase() === 'e') {
+          setTool('eraser');
+        } else if (e.key.toLowerCase() === 'h') {
+          setTool('pan');
         }
       }
     };
@@ -303,6 +313,12 @@ export default function DrawingCanvas({
     }
 
     if (readOnly || !canEdit) return;
+
+    // Select mode: standard pointer to select, move, or pan without drawing ink strokes
+    if (tool === 'select') {
+      panStartRef.current = { mouseX: e.clientX, mouseY: e.clientY, initialPanX: panX, initialPanY: panY };
+      return;
+    }
 
     // Text note creation directly on canvas
     if (tool === 'text') {
@@ -575,33 +591,25 @@ export default function DrawingCanvas({
   };
 
   const getToolCursorStyle = () => {
+    if (tool === 'select') {
+      return { cursor: 'default' };
+    }
     if (tool === 'pan' || spacePressedRef.current) {
       return { cursor: 'grab' };
     }
     if (tool === 'text') {
       return { cursor: 'text' };
     }
-    if (tool === 'pen') {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${encodeURIComponent(darkMode ? '#ffffff' : '#0f172a')}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`;
-      return { cursor: `url('data:image/svg+xml;utf8,${svg}') 2 22, crosshair` };
-    }
-    if (tool === 'pencil') {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${encodeURIComponent(darkMode ? '#ffffff' : '#0f172a')}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="2" x2="22" y2="6"/><path d="M7.5 20.5 19 9l-4-4L3.5 16.5 2 22z"/></svg>`;
-      return { cursor: `url('data:image/svg+xml;utf8,${svg}') 2 22, crosshair` };
-    }
-    if (tool === 'highlighter') {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${encodeURIComponent(darkMode ? '#facc15' : '#ca8a04')}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>`;
-      return { cursor: `url('data:image/svg+xml;utf8,${svg}') 3 21, crosshair` };
+    if (tool === 'pen' || tool === 'pencil' || tool === 'highlighter') {
+      return { cursor: 'crosshair' };
     }
     if (tool === 'eraser') {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="${encodeURIComponent(darkMode ? '#ffffff' : '#0f172a')}" stroke-width="2"/><circle cx="12" cy="12" r="1.5" fill="${encodeURIComponent(darkMode ? '#ffffff' : '#0f172a')}"/></svg>`;
-      return { cursor: `url('data:image/svg+xml;utf8,${svg}') 12 12, crosshair` };
+      return { cursor: 'crosshair' };
     }
     if (['rect', 'rectangle', 'circle', 'line', 'arrow'].includes(tool)) {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M12 2v20M2 12h20" stroke="${encodeURIComponent(darkMode ? '#ffffff' : '#0f172a')}" stroke-width="1.5" stroke-dasharray="3 3"/><rect x="6" y="6" width="12" height="12" fill="none" stroke="${encodeURIComponent(darkMode ? '#60a5fa' : '#2563eb')}" stroke-width="1"/></svg>`;
-      return { cursor: `url('data:image/svg+xml;utf8,${svg}') 12 12, crosshair` };
+      return { cursor: 'crosshair' };
     }
-    return { cursor: 'crosshair' };
+    return { cursor: 'default' };
   };
 
   return (
