@@ -322,7 +322,7 @@ function NotebookEditorSession({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'create',
-          background_type: activePage?.background_type || 'blank'
+          background_type: activePage?.background_type || 'dotted'
         })
       });
       if (res.ok) {
@@ -684,6 +684,8 @@ function NotebookEditorSession({
         onRedo={handleRedo}
         onClear={handleClearCanvas}
         onClearNotebook={() => setShowClearNotebookModal(true)}
+        backgroundType={activePage?.background_type || 'dotted'}
+        onUpdateBackground={(type) => handleUpdatePage(activePage.id, { background_type: type })}
       />
 
       {/* Tablet-to-PC Pairing Modal */}

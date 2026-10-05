@@ -34,7 +34,7 @@ export async function POST(request, { params }) {
     // Reset the first page title and background_type to clean default
     await db.run(
       'UPDATE pages SET title = ?, background_type = ?, sort_order = 0, updated_at = ? WHERE id = ?',
-      ['Page 1', 'blank', now, firstPageId]
+      ['Page 1', 'dotted', now, firstPageId]
     );
 
     // Delete any subsequent pages
@@ -48,7 +48,7 @@ export async function POST(request, { params }) {
     firstPageId = 'pg_' + Math.random().toString(36).substring(2, 10);
     await db.run(
       'INSERT INTO pages (id, notebook_id, title, sort_order, background_type, created_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)',
-      [firstPageId, notebookId, 'Page 1', 'blank', now, now]
+      [firstPageId, notebookId, 'Page 1', 'dotted', now, now]
     );
   }
 

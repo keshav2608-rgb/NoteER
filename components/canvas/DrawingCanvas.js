@@ -139,7 +139,7 @@ export default function DrawingCanvas({
 
     // Ensure draft canvas is clean when persistent document state is redrawn
     const draftCanvas = draftCanvasRef.current;
-    if (draftCanvas && !isDrawingRef.current) {
+    if (draftCanvas) {
       const dCtx = draftCanvas.getContext('2d');
       dCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
       dCtx.clearRect(0, 0, width, height);
@@ -194,7 +194,8 @@ export default function DrawingCanvas({
     ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
-    if (type === 'blank') {
+    const paperType = type || 'dotted';
+    if (paperType === 'blank') {
       ctx.restore();
       return;
     }
@@ -203,9 +204,9 @@ export default function DrawingCanvas({
     const offsetX = ((px % gridSize) + gridSize) % gridSize;
     const offsetY = ((py % gridSize) + gridSize) % gridSize;
 
-    if (type === 'dotted') {
-      ctx.fillStyle = darkMode ? '#475569' : '#94a3b8';
-      const dotRadius = Math.max(1.0, 1.35 * Math.min(z, 1.5));
+    if (paperType === 'dotted') {
+      ctx.fillStyle = darkMode ? '#64748b' : '#64748b';
+      const dotRadius = Math.max(1.5, 1.8 * Math.min(z, 1.5));
       for (let x = offsetX; x < width; x += gridSize) {
         for (let y = offsetY; y < height; y += gridSize) {
           ctx.beginPath();
@@ -213,8 +214,8 @@ export default function DrawingCanvas({
           ctx.fill();
         }
       }
-    } else if (type === 'grid') {
-      ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1';
+    } else if (paperType === 'grid') {
+      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = offsetX; x < width; x += gridSize) {
@@ -228,10 +229,10 @@ export default function DrawingCanvas({
         ctx.lineTo(width, lineY);
       }
       ctx.stroke();
-    } else if (type === 'ruled') {
+    } else if (paperType === 'ruled') {
       const lineSpacing = 32 * z;
       const offY = ((py % lineSpacing) + lineSpacing) % lineSpacing;
-      ctx.strokeStyle = darkMode ? '#334155' : '#cbd5e1';
+      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let y = offY; y < height; y += lineSpacing) {
@@ -246,8 +247,8 @@ export default function DrawingCanvas({
       const marginScreenX = marginWorldX * z + px;
       if (marginScreenX >= 0 && marginScreenX <= width) {
         ctx.beginPath();
-        ctx.strokeStyle = darkMode ? '#e11d4866' : '#f43f5e55';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = darkMode ? '#f43f5e99' : '#e11d4899';
+        ctx.lineWidth = 2;
         const lineMarginX = Math.floor(marginScreenX) + 0.5;
         ctx.moveTo(lineMarginX, 0);
         ctx.lineTo(lineMarginX, height);
@@ -363,6 +364,27 @@ export default function DrawingCanvas({
 
     // Text note creation directly on canvas
     if (tool === 'text') {
+      try {
+        e.preventDefault();
+      } catch (_) {}
+
+      // If an empty text block already exists, relocate it to the new click position
+      const existingEmptyBlock = documentState.textBlocks?.find(
+        (b) => !b.text || !b.text.trim()
+      );
+      if (existingEmptyBlock) {
+        newlyCreatedBlockIdRef.current = existingEmptyBlock.id;
+        onSendOp({
+          type: 'text:update',
+          textBlock: {
+            ...existingEmptyBlock,
+            x: Math.round(world.x),
+            y: Math.round(world.y)
+          }
+        });
+        return;
+      }
+
       const textColor = darkMode ? '#f8fafc' : (color === '#ffffff' || color === '#f8fafc' ? '#0f172a' : color || '#0f172a');
       const newBlock = {
         id: 'txt_' + Math.random().toString(36).substring(2, 10),
