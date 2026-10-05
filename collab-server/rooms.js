@@ -20,7 +20,7 @@ class Room {
         this.documentState = {
           strokes: parsed.strokes || [],
           shapes: parsed.shapes || [],
-          textBlocks: parsed.textBlocks || []
+          textBlocks: Array.isArray(parsed.textBlocks) ? parsed.textBlocks.filter(t => !t.deleted) : []
         };
       } catch (err) {
         console.error(`Failed to parse persisted state for ${roomName}:`, err.message);
@@ -119,18 +119,28 @@ class Room {
       this.documentState.shapes = this.documentState.shapes.filter(s => s.id !== op.shapeId);
       changed = true;
     } else if (op.type === 'text:update' && op.textBlock) {
-      const idx = this.documentState.textBlocks.findIndex(t => t.id === op.textBlock.id);
-      if (idx >= 0) {
-        this.documentState.textBlocks[idx] = op.textBlock;
+      if (op.textBlock.deleted) {
+        this.documentState.textBlocks = this.documentState.textBlocks.filter(t => t.id !== op.textBlock.id);
       } else {
-        this.documentState.textBlocks.push(op.textBlock);
+        const idx = this.documentState.textBlocks.findIndex(t => t.id === op.textBlock.id);
+        if (idx >= 0) {
+          this.documentState.textBlocks[idx] = op.textBlock;
+        } else {
+          this.documentState.textBlocks.push(op.textBlock);
+        }
       }
       changed = true;
+    } else if (op.type === 'text:delete') {
+      const delId = op.textBlockId || op.textBlock?.id;
+      if (delId) {
+        this.documentState.textBlocks = this.documentState.textBlocks.filter(t => t.id !== delId);
+        changed = true;
+      }
     } else if (op.type === 'state:restore' && op.documentState) {
       this.documentState = {
         strokes: op.documentState.strokes || [],
         shapes: op.documentState.shapes || [],
-        textBlocks: op.documentState.textBlocks || []
+        textBlocks: Array.isArray(op.documentState.textBlocks) ? op.documentState.textBlocks.filter(t => !t.deleted) : []
       };
       changed = true;
     }

@@ -12,7 +12,8 @@ export default function StickyTextBlock({
   panY = 0,
   isDarkModeOverride,
   canEditOverride,
-  toolOverride
+  toolOverride,
+  autoFocus = false
 }) {
   const storeState = useNotebookStore();
   const canEdit = canEditOverride !== undefined ? canEditOverride : storeState.canEdit;
@@ -20,18 +21,42 @@ export default function StickyTextBlock({
   const currentTool = toolOverride !== undefined ? toolOverride : storeState.tool;
   const isPanMode = currentTool === 'pan' || currentTool === 'hand';
 
-  const [isFocused, setIsFocused] = useState(!block.text);
+  const [localText, setLocalText] = useState(block.text || '');
+  const [isFocused, setIsFocused] = useState(Boolean(autoFocus));
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
   const textareaRef = useRef(null);
   const dragStartRef = useRef({ startX: 0, startY: 0, initialBlockX: block.x, initialBlockY: block.y });
+  const debounceTimerRef = useRef(null);
+  const localTextRef = useRef(localText);
+  localTextRef.current = localText;
 
-  // Auto-focus new text block
+  // Auto-focus only on initial mount if explicitly requested by the local client that placed it.
+  // Remote clients receive autoFocus=false and will NEVER have their focus or keyboard hijacked.
   useEffect(() => {
-    if (!block.text && textareaRef.current) {
+    if (autoFocus && textareaRef.current) {
       textareaRef.current.focus();
+      const len = textareaRef.current.value.length;
+      textareaRef.current.setSelectionRange(len, len);
     }
-  }, [block.text]);
+  }, []);
+
+  // Sync incoming text updates from remote peers when the local user is NOT actively typing
+  useEffect(() => {
+    if (!isFocused && block.text !== undefined && block.text !== localTextRef.current) {
+      setLocalText(block.text || '');
+    }
+  }, [block.text, isFocused]);
+
+  // Clean up any pending debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   // Auto-grow textarea height
   useEffect(() => {
@@ -39,12 +64,38 @@ export default function StickyTextBlock({
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = `${Math.max(28, textareaRef.current.scrollHeight)}px`;
     }
-  }, [block.text]);
+  }, [localText, block.fontSize]);
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    setLocalText(val);
+
+    // Debounce remote broadcast by 200ms to keep typing silky smooth with no caret jumping
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      onUpdate({ ...block, text: val });
+    }, 200);
+  };
 
   const handleBlur = () => {
     setIsFocused(false);
-    if (!block.text?.trim() && onDelete) {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    const trimmed = localTextRef.current.trim();
+    if (!trimmed && onDelete) {
       onDelete(block.id);
+    } else if (localTextRef.current !== block.text) {
+      onUpdate({ ...block, text: localTextRef.current });
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      textareaRef.current?.blur();
     }
   };
 
@@ -71,6 +122,7 @@ export default function StickyTextBlock({
     const dy = (e.clientY - dragStartRef.current.startY) / zoom;
     onUpdate({
       ...block,
+      text: localTextRef.current,
       x: Math.round(dragStartRef.current.initialBlockX + dx),
       y: Math.round(dragStartRef.current.initialBlockY + dy)
     });
@@ -146,11 +198,12 @@ export default function StickyTextBlock({
       {/* Seamless in-canvas text (no card box, no background, no border) */}
       <textarea
         ref={textareaRef}
-        value={block.text || ''}
+        value={localText}
         readOnly={!canEdit}
         onFocus={() => setIsFocused(true)}
         onBlur={handleBlur}
-        onChange={(e) => onUpdate({ ...block, text: e.target.value })}
+        onChange={handleTextChange}
+        onKeyDown={handleKeyDown}
         placeholder={isFocused ? 'Type note...' : ''}
         rows={1}
         className={`w-full bg-transparent resize-none p-1 focus:outline-none font-sans leading-relaxed transition-all ${

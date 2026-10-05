@@ -241,6 +241,139 @@ async function runTests() {
     });
   });
 
+  await testAsync('Cross-device text note synchronization: PC and Tablet sync, update, and cleanly delete in realtime', async () => {
+    const WS_URL = 'ws://localhost:1234';
+    const roomName = 'notebook:nb_starter_welcome:page:page_overview';
+    const ownerUser = db.get('SELECT * FROM users WHERE id = ?', ['usr_demo_owner']);
+    const editorUser = db.get('SELECT * FROM users WHERE id = ?', ['usr_demo_editor']);
+    const pcToken = generateCollabToken(ownerUser, 'nb_starter_welcome', 'page_overview');
+    const tabletToken = generateCollabToken(editorUser, 'nb_starter_welcome', 'page_overview');
+
+    const pcWs = new WebSocket(WS_URL);
+    await new Promise((resolve, reject) => {
+      pcWs.on('open', () => {
+        pcWs.send(JSON.stringify({ type: 'auth:join', token: pcToken, roomName, isTablet: false }));
+      });
+      pcWs.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'auth:success') resolve();
+      });
+      pcWs.on('error', reject);
+    });
+
+    const tabletWs = new WebSocket(WS_URL);
+    await new Promise((resolve, reject) => {
+      tabletWs.on('open', () => {
+        tabletWs.send(JSON.stringify({ type: 'auth:join', token: tabletToken, roomName, isTablet: true }));
+      });
+      tabletWs.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'auth:success') resolve();
+      });
+      tabletWs.on('error', reject);
+    });
+
+    let tabletReceivedText = false;
+    let pcReceivedUpdate = false;
+    let pcReceivedDelete = false;
+
+    const testBlockId = 'txt_sync_test_' + Date.now();
+
+    const tabletTextPromise = new Promise((resolve) => {
+      tabletWs.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'sync:op' && msg.op.type === 'text:update' && msg.op.textBlock?.id === testBlockId) {
+          if (msg.op.textBlock.text === 'Note created on PC') {
+            tabletReceivedText = true;
+            resolve();
+          }
+        }
+      });
+    });
+
+    pcWs.send(JSON.stringify({
+      type: 'sync:op',
+      op: {
+        type: 'text:update',
+        textBlock: {
+          id: testBlockId,
+          text: 'Note created on PC',
+          x: 150,
+          y: 250,
+          width: 320,
+          fontSize: 16
+        }
+      }
+    }));
+
+    await tabletTextPromise;
+    assert(tabletReceivedText, 'Tablet received text note created on PC in realtime');
+
+    const pcUpdatePromise = new Promise((resolve) => {
+      pcWs.on('message', (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'sync:op' && msg.op.type === 'text:update' && msg.op.textBlock?.id === testBlockId) {
+          if (msg.op.textBlock.text === 'Note edited on Tablet') {
+            pcReceivedUpdate = true;
+            resolve();
+          }
+        }
+        if (msg.type === 'sync:op' && (msg.op.type === 'text:delete' || (msg.op.type === 'text:update' && msg.op.textBlock?.deleted))) {
+          if (msg.op.textBlockId === testBlockId || msg.op.textBlock?.id === testBlockId) {
+            pcReceivedDelete = true;
+          }
+        }
+      });
+    });
+
+    tabletWs.send(JSON.stringify({
+      type: 'sync:op',
+      op: {
+        type: 'text:update',
+        textBlock: {
+          id: testBlockId,
+          text: 'Note edited on Tablet',
+          x: 150,
+          y: 250,
+          width: 320,
+          fontSize: 16
+        }
+      }
+    }));
+
+    await pcUpdatePromise;
+    assert(pcReceivedUpdate, 'PC received text note update edited on Tablet in realtime');
+
+    const pcDeletePromise = new Promise((resolve) => {
+      const listener = (data) => {
+        const msg = JSON.parse(data.toString());
+        if (msg.type === 'sync:op' && (msg.op.type === 'text:delete' || (msg.op.type === 'text:update' && msg.op.textBlock?.deleted))) {
+          if (msg.op.textBlockId === testBlockId || msg.op.textBlock?.id === testBlockId) {
+            pcReceivedDelete = true;
+            pcWs.removeListener('message', listener);
+            resolve();
+          }
+        }
+      };
+      pcWs.on('message', listener);
+    });
+
+    tabletWs.send(JSON.stringify({
+      type: 'sync:op',
+      op: {
+        type: 'text:delete',
+        textBlockId: testBlockId,
+        textBlock: { id: testBlockId, deleted: true }
+      }
+    }));
+
+    await pcDeletePromise;
+    assert(pcReceivedDelete, 'PC received text note deletion in realtime');
+
+    pcWs.close();
+    tabletWs.close();
+  });
+
   console.log('\n=== Test Suite 5: Scoped Canvas-Only Pairing Security ===');
   await testAsync('Paired tablet receives scoped stylusToken and can draw on canvas without user account access', async () => {
     // 1. Issue a pairing code for notebook

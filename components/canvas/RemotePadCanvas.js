@@ -180,6 +180,7 @@ export default function RemotePadCanvas({
   const activePointersRef = useRef(new Map());
   const pinchStartRef = useRef(null);
   const toastTimeoutRef = useRef(null);
+  const newlyCreatedBlockIdRef = useRef(null);
 
   const vibrate = (ms = 12) => {
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -458,7 +459,9 @@ export default function RemotePadCanvas({
         color: textColor,
         fontSize: Math.max(16, strokeWidth * 3)
       };
+      newlyCreatedBlockIdRef.current = newBlock.id;
       onSendOp({ type: 'text:update', textBlock: newBlock });
+      setTool('hand');
       vibrate(8);
       return;
     }
@@ -1039,9 +1042,11 @@ export default function RemotePadCanvas({
               isDarkModeOverride={isDarkMode}
               canEditOverride={true}
               toolOverride={tool}
+              autoFocus={block.id === newlyCreatedBlockIdRef.current}
               onUpdate={(updated) => onSendOp({ type: 'text:update', textBlock: updated })}
               onDelete={(id) => onSendOp({
-                type: 'text:update',
+                type: 'text:delete',
+                textBlockId: id,
                 textBlock: { id, deleted: true }
               })}
             />

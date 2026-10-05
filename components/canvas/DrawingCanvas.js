@@ -48,6 +48,7 @@ export default function DrawingCanvas({
   const shapeStartRef = useRef(null);
   const panStartRef = useRef(null);
   const spacePressedRef = useRef(false);
+  const newlyCreatedBlockIdRef = useRef(null);
 
   // Handle keyboard shortcuts (Space for pan, V for select, P for pen, T for text, etc.)
   useEffect(() => {
@@ -332,7 +333,9 @@ export default function DrawingCanvas({
         color: textColor,
         fontSize: Math.max(16, strokeWidth * 3)
       };
+      newlyCreatedBlockIdRef.current = newBlock.id;
       onSendOp({ type: 'text:update', textBlock: newBlock });
+      setTool('select');
       return;
     }
 
@@ -644,9 +647,11 @@ export default function DrawingCanvas({
             zoom={zoom}
             panX={panX}
             panY={panY}
+            autoFocus={block.id === newlyCreatedBlockIdRef.current}
             onUpdate={(updated) => onSendOp({ type: 'text:update', textBlock: updated })}
             onDelete={(id) => onSendOp({
-              type: 'text:update',
+              type: 'text:delete',
+              textBlockId: id,
               textBlock: { id, deleted: true }
             })}
           />
