@@ -50,8 +50,8 @@ body {
 
 /* Visible Top Scrollbar for Mobile / Small Screens */
 .top-header-scroll {
-  overflow-x: auto !important;
-  overflow-y: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: rgba(99, 102, 241, 0.6) rgba(148, 163, 184, 0.15);

@@ -278,7 +278,7 @@ export default function RemotePadCanvas({
         canvas.style.width = `${width}px`;
         canvas.style.height = `${height}px`;
         const ctx = canvas.getContext('2d');
-        ctx.scale(dpr, dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       }
     });
 
@@ -296,9 +296,11 @@ export default function RemotePadCanvas({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const width = canvas.width / (window.devicePixelRatio || 1);
-    const height = canvas.height / (window.devicePixelRatio || 1);
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
 
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
     // Background paper
@@ -419,6 +421,10 @@ export default function RemotePadCanvas({
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
 
+    // If pointer went down on a StickyTextBlock, don't intercept it
+    const isOnTextBlock = e.target.closest?.('[data-text-block]');
+    if (isOnTextBlock) return;
+
     // Track pointer
     activePointersRef.current.set(e.pointerId, {
       x: screenX,
@@ -471,7 +477,9 @@ export default function RemotePadCanvas({
     }
 
     // Capture pointer so events keep firing even if pointer leaves the element (critical on mobile)
-    try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    if (tool !== 'hand' && tool !== 'text') {
+      try { e.target.setPointerCapture(e.pointerId); } catch (_) {}
+    }
 
     // World coordinate conversion
     const world = screenToWorld(screenX, screenY, zoomRef.current, panRef.current.x, panRef.current.y);
@@ -1055,7 +1063,7 @@ export default function RemotePadCanvas({
 
         {/* World-space Canvas Viewport Layer: Transforms all in-canvas HTML elements in 100% exact sync with 2D canvas */}
         <div
-          className="absolute inset-0 pointer-events-none origin-top-left overflow-visible"
+          className="absolute inset-0 pointer-events-none origin-top-left overflow-visible z-10"
           style={{
             transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             transformOrigin: '0 0'

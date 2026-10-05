@@ -439,8 +439,8 @@ function NotebookEditorSession({
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col bg-slate-100 dark:bg-slate-950 select-none">
       
-      {/* Top Header Bar with Visible Scrollbar for Mobile / Small Screens */}
-      <header className="absolute top-0 left-0 right-0 z-30 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between shadow-2xs text-slate-900 dark:text-slate-100 top-header-scroll min-w-0">
+      {/* Top Header Bar: overflow-visible ensures Paper Design and Management dropdowns flow seamlessly over canvas */}
+      <header className="absolute top-0 left-0 right-0 z-30 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between shadow-2xs text-slate-900 dark:text-slate-100 min-w-0 overflow-visible">
         
         {/* Left: Back & Title */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0 mr-2 sm:mr-4">
@@ -454,7 +454,7 @@ function NotebookEditorSession({
           </button>
 
           <div className="flex items-center gap-2">
-            <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate max-w-[120px] sm:max-w-xs">
+            <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate max-w-[100px] xs:max-w-[140px] sm:max-w-xs">
               {notebook?.title}
             </h1>
             {notebook?.visibility === 'shared' ? (
@@ -478,7 +478,7 @@ function NotebookEditorSession({
         </div>
 
         {/* Right: Actions (Pair Tablet, Share, Page Design, History, Export, Dark Theme) */}
-        <div ref={headerMenuRef} className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+        <div ref={headerMenuRef} className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-visible">
           
           {/* Connect Drawing Tablet Button */}
           <button
@@ -488,7 +488,7 @@ function NotebookEditorSession({
             title="Use iPad or tablet as drawing surface for this PC"
           >
             <Tablet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="whitespace-nowrap">Connect Tablet</span>
+            <span className="whitespace-nowrap hidden md:inline">Connect Tablet</span>
           </button>
 
           {/* Share Button */}
@@ -499,24 +499,27 @@ function NotebookEditorSession({
             title="Share & invite collaborators"
           >
             <Share2 className="w-4 h-4" />
-            <span className="whitespace-nowrap">Share</span>
+            <span className="whitespace-nowrap hidden sm:inline">Share</span>
           </button>
 
           {/* Page Paper Design Dropdown */}
           <div className="relative shrink-0">
             <button
               type="button"
-              onClick={() => setShowBackgroundMenu(!showBackgroundMenu)}
+              onClick={() => {
+                setShowBackgroundMenu(!showBackgroundMenu);
+                setShowManageMenu(false);
+              }}
               title="Page Paper Style (Dotted, Grid, Ruled, Blank)"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
             >
               <Grid className="w-4 h-4 text-indigo-500" />
-              <span className="capitalize whitespace-nowrap">{activePage?.background_type || 'dotted'}</span>
-              <Check className="w-3 h-3 opacity-60 hidden sm:inline" />
+              <span className="capitalize whitespace-nowrap hidden sm:inline">{activePage?.background_type || 'dotted'}</span>
+              <Check className="w-3 h-3 opacity-60 hidden lg:inline" />
             </button>
 
             {showBackgroundMenu && (
-              <div className="absolute top-full right-0 mt-2 w-44 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95">
+              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
                 <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   Paper Design
                 </div>
@@ -584,7 +587,10 @@ function NotebookEditorSession({
             <div ref={manageMenuRef} className="relative shrink-0">
               <button
                 type="button"
-                onClick={() => setShowManageMenu(!showManageMenu)}
+                onClick={() => {
+                  setShowManageMenu(!showManageMenu);
+                  setShowBackgroundMenu(false);
+                }}
                 title="Notebook Options & Management"
                 className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
               >
@@ -592,7 +598,7 @@ function NotebookEditorSession({
               </button>
 
               {showManageMenu && (
-                <div className="absolute top-full right-0 mt-2 w-60 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95">
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
                   <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     Notebook Management
                   </div>

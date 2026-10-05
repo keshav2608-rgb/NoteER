@@ -92,9 +92,13 @@ export default function DrawingCanvas({
     const canvas = mainCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const width = canvas.width / (window.devicePixelRatio || 1);
-    const height = canvas.height / (window.devicePixelRatio || 1);
+    const dpr = window.devicePixelRatio || 1;
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
 
+    // Always reset to a clean DPR-scaled transform so this function is self-contained
+    // regardless of what ctx.scale() calls happened before (e.g. from resizeCanvas)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
     // Render background paper pattern in world space
@@ -156,8 +160,9 @@ export default function DrawingCanvas({
           canvas.height = height * dpr;
           canvas.style.width = `${width}px`;
           canvas.style.height = `${height}px`;
+          // Use setTransform instead of scale() to avoid accumulation on repeated calls
           const ctx = canvas.getContext('2d');
-          ctx.scale(dpr, dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         }
       });
     }
@@ -284,6 +289,13 @@ export default function DrawingCanvas({
   const handlePointerDown = (e) => {
     const container = containerRef.current;
     if (!container) return;
+
+    // If the pointer went down on a StickyTextBlock element (textarea, its wrapper, or controls),
+    // let that element handle it completely — don't intercept it here.
+    // StickyTextBlock's own stopPropagation will prevent canvas interaction.
+    const isOnTextBlock = e.target.closest?.('[data-text-block]');
+    if (isOnTextBlock) return;
+
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
@@ -317,10 +329,13 @@ export default function DrawingCanvas({
 
     if (activePointersRef.current.size > 2) return;
 
-    // Capture pointer so drawing continues smoothly even if cursor briefly exits container
-    try {
-      e.target.setPointerCapture?.(e.pointerId);
-    } catch (_) {}
+    // Capture pointer so drawing continues smoothly even if cursor briefly exits container.
+    // Do NOT capture in select/text mode — text blocks need to receive their own events.
+    if (tool !== 'select' && tool !== 'text') {
+      try {
+        e.target.setPointerCapture?.(e.pointerId);
+      } catch (_) {}
+    }
 
     const world = screenToWorld(screenX, screenY, zoom, panX, panY);
 
@@ -651,7 +666,7 @@ export default function DrawingCanvas({
 
       {/* World-space Canvas Viewport Layer: Transforms all in-canvas HTML elements in 100% exact sync with 2D canvas */}
       <div
-        className="absolute inset-0 pointer-events-none origin-top-left overflow-visible"
+        className="absolute inset-0 pointer-events-none origin-top-left overflow-visible z-10"
         style={{
           transform: `translate3d(${panX}px, ${panY}px, 0) scale(${zoom})`,
           transformOrigin: '0 0'
