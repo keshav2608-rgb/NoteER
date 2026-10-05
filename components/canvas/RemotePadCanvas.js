@@ -741,6 +741,30 @@ export default function RemotePadCanvas({
         }
       }
     }
+
+    // Check text blocks
+    if (documentState.textBlocks) {
+      for (const block of documentState.textBlocks) {
+        const blockW = block.width || 320;
+        const blockH = Math.max(36, ((block.text || '').split('\n').length + 1) * (block.fontSize || 18) * 1.5);
+        if (
+          worldX >= block.x - 10 &&
+          worldX <= block.x + blockW + 10 &&
+          worldY >= block.y - 10 &&
+          worldY <= block.y + blockH + 10
+        ) {
+          vibrate(15);
+          setUndoStack((prev) => [...prev, { type: 'text:update', textBlock: block }]);
+          setRedoStack([]);
+          onSendOp({
+            type: 'text:delete',
+            textBlockId: block.id,
+            textBlock: { id: block.id, deleted: true }
+          });
+          return;
+        }
+      }
+    }
   };
 
   const handleUndo = () => {

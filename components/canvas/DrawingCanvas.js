@@ -136,6 +136,14 @@ export default function DrawingCanvas({
     }
 
     ctx.restore();
+
+    // Ensure draft canvas is clean when persistent document state is redrawn
+    const draftCanvas = draftCanvasRef.current;
+    if (draftCanvas && !isDrawingRef.current) {
+      const dCtx = draftCanvas.getContext('2d');
+      dCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      dCtx.clearRect(0, 0, width, height);
+    }
   }, [documentState, zoom, panX, panY, backgroundType, darkMode]);
 
   // Resize canvas buffers to match window/container with devicePixelRatio
@@ -363,11 +371,10 @@ export default function DrawingCanvas({
         width: 320,
         text: '',
         color: textColor,
-        fontSize: Math.max(16, strokeWidth * 3)
+        fontSize: 18
       };
       newlyCreatedBlockIdRef.current = newBlock.id;
       onSendOp({ type: 'text:update', textBlock: newBlock });
-      setTool('select');
       return;
     }
 
@@ -619,6 +626,28 @@ export default function DrawingCanvas({
         if (hitTestShape(shape, worldX, worldY)) {
           pushUndo({ type: 'shape:add', shape });
           onSendOp({ type: 'shape:delete', shapeId: shape.id });
+          return;
+        }
+      }
+    }
+
+    // Check text blocks
+    if (documentState.textBlocks) {
+      for (const block of documentState.textBlocks) {
+        const blockW = block.width || 320;
+        const blockH = Math.max(36, ((block.text || '').split('\n').length + 1) * (block.fontSize || 18) * 1.5);
+        if (
+          worldX >= block.x - 10 &&
+          worldX <= block.x + blockW + 10 &&
+          worldY >= block.y - 10 &&
+          worldY <= block.y + blockH + 10
+        ) {
+          pushUndo({ type: 'text:update', textBlock: block });
+          onSendOp({
+            type: 'text:delete',
+            textBlockId: block.id,
+            textBlock: { id: block.id, deleted: true }
+          });
           return;
         }
       }

@@ -90,10 +90,7 @@ export default function StickyTextBlock({
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
-    const trimmed = localTextRef.current.trim();
-    if (!trimmed && onDelete) {
-      onDelete(block.id);
-    } else if (localTextRef.current !== block.text) {
+    if (localTextRef.current !== block.text) {
       onUpdate({ ...block, text: localTextRef.current });
     }
   };
@@ -149,9 +146,8 @@ export default function StickyTextBlock({
     textColor = darkMode ? '#f8fafc' : '#0f172a';
   }
 
-  const baseFontSize = block.fontSize || 16;
-  const isSelectMode = currentTool === 'select';
-  const showControls = canEdit && (isHovered || isFocused || isDragging || isSelectMode);
+  const baseFontSize = block.fontSize || 18;
+  const showControls = canEdit && (isHovered || isFocused || isDragging);
 
   return (
     <div
@@ -167,21 +163,22 @@ export default function StickyTextBlock({
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`absolute top-0 left-0 z-10 group rounded-xl transition-all ${
+      className={`absolute top-0 left-0 z-10 group transition-all ${
         isPanMode ? 'pointer-events-none' : 'pointer-events-auto'
       } ${
         isFocused || isDragging
-          ? 'ring-2 ring-indigo-500/80 bg-white/90 dark:bg-slate-900/90 shadow-lg'
-          : isHovered || isSelectMode
-          ? 'ring-1 ring-indigo-400/50 bg-white/40 dark:bg-slate-900/40 shadow-xs'
-          : 'bg-transparent'
+          ? 'ring-1 ring-indigo-400/60 rounded-lg'
+          : isHovered
+          ? 'ring-1 ring-slate-300/40 dark:ring-slate-700/40 rounded-lg'
+          : ''
       }`}
       style={{
         transform: `translate3d(${block.x}px, ${block.y}px, 0)`,
-        width: `${block.width || 320}px`
+        width: `${block.width || 320}px`,
+        background: 'transparent'
       }}
     >
-      {/* Move & Delete controls: visible on hover, focus, dragging, or select mode */}
+      {/* Move & Delete controls: visible on hover, focus, or dragging */}
       {showControls && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
@@ -213,7 +210,7 @@ export default function StickyTextBlock({
         </div>
       )}
 
-      {/* Seamless in-canvas text (allows full text selection, editing, typing) */}
+      {/* Seamless in-canvas text (written directly on canvas, zero extra box) */}
       <textarea
         ref={textareaRef}
         value={localText}
@@ -222,9 +219,9 @@ export default function StickyTextBlock({
         onBlur={handleBlur}
         onChange={handleTextChange}
         onKeyDown={handleKeyDown}
-        placeholder={isFocused ? 'Type note...' : ''}
+        placeholder={isFocused || !localText ? 'Type note...' : ''}
         rows={1}
-        className="w-full bg-transparent resize-none p-1.5 focus:outline-none font-sans leading-relaxed transition-all cursor-text select-text border-0"
+        className="w-full bg-transparent resize-none p-1 focus:outline-none font-sans leading-relaxed transition-all cursor-text select-text border-0 placeholder:text-slate-400/50 dark:placeholder:text-slate-500/50"
         style={{
           color: textColor,
           fontSize: `${baseFontSize}px`,

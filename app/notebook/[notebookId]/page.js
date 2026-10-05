@@ -252,27 +252,34 @@ function NotebookEditorSession({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo]);
 
-  const handleClearCanvas = () => {
-    if (confirm('Clear all strokes, shapes, and text notes on this page?')) {
-      sendOp({ type: 'stroke:clear' });
-      setDocumentState({ strokes: [], shapes: [], textBlocks: [] });
+  const [showClearNotebookModal, setShowClearNotebookModal] = useState(false);
+
+  const handleClearCanvas = async () => {
+    sendOp({ type: 'stroke:clear' });
+    setDocumentState({ strokes: [], shapes: [], textBlocks: [] });
+    useNotebookStore.setState({ undoStack: [], redoStack: [] });
+    if (activePage?.id) {
+      try {
+        await fetch(`/api/pages/${activePage.id}/clear`, { method: 'POST' });
+      } catch (err) {
+        console.error('Error clearing page canvas:', err);
+      }
     }
   };
 
   const handleClearNotebookOverall = async () => {
-    if (!confirm('Are you sure you want to clear this entire notebook? All pages, drawings, shapes, and notes across all pages will be permanently wiped.')) {
-      return;
-    }
     try {
       const res = await fetch(`/api/notebooks/${notebookId}/clear`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         sendOp({ type: 'stroke:clear' });
         setDocumentState({ strokes: [], shapes: [], textBlocks: [] });
+        useNotebookStore.setState({ undoStack: [], redoStack: [] });
         if (data.pages && data.pages.length > 0) {
           setPages(data.pages);
           setActivePageId(data.activePageId || data.pages[0].id);
         }
+        setShowClearNotebookModal(false);
       } else {
         const err = await res.json();
         alert(err.error || 'Failed to clear notebook.');
@@ -619,7 +626,7 @@ function NotebookEditorSession({
                     type="button"
                     onClick={() => {
                       setShowManageMenu(false);
-                      handleClearNotebookOverall();
+                      setShowClearNotebookModal(true);
                     }}
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
                   >
@@ -676,7 +683,7 @@ function NotebookEditorSession({
         onUndo={handleUndo}
         onRedo={handleRedo}
         onClear={handleClearCanvas}
-        onClearNotebook={handleClearNotebookOverall}
+        onClearNotebook={() => setShowClearNotebookModal(true)}
       />
 
       {/* Tablet-to-PC Pairing Modal */}
@@ -707,6 +714,48 @@ function NotebookEditorSession({
         onClose={() => setShowSnapshotModal(false)}
         onRestoreSnapshot={handleRestoreSnapshot}
       />
+
+      {/* Clear Notebook Overall In-App Confirmation Modal */}
+      {showClearNotebookModal && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
+        >
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-md w-full flex flex-col gap-4 text-slate-900 dark:text-slate-100">
+            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
+              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/40">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold">Clear Entire Notebook?</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              All drawings, shapes, text notes, and additional pages across the entire notebook will be permanently wiped, resetting it to a single clean Page 1.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowClearNotebookModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleClearNotebookOverall}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-colors flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Yes, Clear Everything</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
