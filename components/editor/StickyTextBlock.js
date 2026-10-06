@@ -563,15 +563,22 @@ export default function StickyTextBlock({
 
       {/* Double-Bezel Card Container */}
       <div
-        className={`p-1 rounded-2xl border transition-all ${currentStyle.outerClass} ${
+        className={`p-1 rounded-[1.5rem] border transition-all ${currentStyle.outerClass} ${
           isActive
-            ? 'ring-2 ring-indigo-500/80 shadow-2xl scale-[1.005]'
+            ? 'ring-2 ring-indigo-500/80 shadow-[0_20px_35px_-8px_rgba(0,0,0,0.22),0_8px_16px_-4px_rgba(0,0,0,0.1)] scale-[1.005]'
             : isHovered
-            ? 'ring-1 ring-indigo-400/50 shadow-lg'
-            : 'shadow-md'
+            ? 'ring-1 ring-indigo-400/50 shadow-[0_14px_28px_-6px_rgba(0,0,0,0.18),0_4px_10px_-2px_rgba(0,0,0,0.08)]'
+            : 'shadow-[0_8px_20px_-6px_rgba(0,0,0,0.14),0_2px_6px_-2px_rgba(0,0,0,0.06)]'
         }`}
       >
-        <div className={`p-3 rounded-xl transition-colors ${currentStyle.innerClass} relative`}>
+        <div className={`p-3.5 rounded-[calc(1.5rem-0.25rem)] transition-colors ${currentStyle.innerClass} relative shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)]`}>
+          {/* Tactile Washi Paper Tape Notch */}
+          {currentStyleId !== 'transparent' && (
+            <div
+              className="w-12 h-2.5 mx-auto -mt-2.5 mb-2 rounded-xs bg-white/50 dark:bg-black/20 border-t border-b border-white/60 dark:border-white/10 shadow-[0_1px_2px_rgba(0,0,0,0.06)] pointer-events-none backdrop-blur-xs opacity-80"
+              title="Tactile paper note"
+            />
+          )}
           <textarea
             ref={textareaRef}
             value={localText}

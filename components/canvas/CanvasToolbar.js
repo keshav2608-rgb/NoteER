@@ -621,9 +621,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => setTool('select')}
             title="Select & Move (V): Standard pointer to select notes, move elements, or click features"
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer active:scale-95 transition-all ${
               tool === 'select'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -637,9 +637,9 @@ export default function CanvasToolbar({
               if (tool === 'select' || tool === 'text') setTool('pen');
             }}
             title="Draw Mode (P): Draw freehand or geometric shapes"
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer active:scale-95 transition-all ${
               ['pen', 'pencil', 'highlighter', 'rect', 'rectangle', 'circle', 'line', 'arrow'].includes(tool)
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs'
+                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -651,9 +651,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => setTool('text')}
             title="Type Note Mode (T): Click anywhere on canvas to write notes"
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold cursor-pointer active:scale-95 transition-all ${
               tool === 'text'
-                ? 'bg-indigo-600 text-white shadow-xs'
+                ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -668,9 +668,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => handleSelectTool('pen')}
             title="Pen (Natural Ink)"
-            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer active:scale-95 transition-all ${
               tool === 'pen'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -681,9 +681,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => handleSelectTool('pencil')}
             title="Pencil (Graphite Sketch)"
-            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer active:scale-95 transition-all ${
               tool === 'pencil'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -694,9 +694,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => handleSelectTool('highlighter')}
             title="Highlighter"
-            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer active:scale-95 transition-all ${
               tool === 'highlighter'
-                ? 'bg-amber-500 text-white shadow-sm'
+                ? 'bg-gradient-to-tr from-amber-500 to-amber-400 text-white shadow-md shadow-amber-500/25'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -707,9 +707,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => handleSelectTool('eraser')}
             title="Eraser (E - Erase strokes & shapes)"
-            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer active:scale-95 transition-all ${
               tool === 'eraser'
-                ? 'bg-rose-600 text-white shadow-sm'
+                ? 'bg-gradient-to-tr from-rose-600 to-rose-500 text-white shadow-md shadow-rose-500/25'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -719,7 +719,7 @@ export default function CanvasToolbar({
 
         {/* Shapes Menu Group */}
         <div ref={shapeBtnRef} className="relative flex items-center pr-1.5 border-r border-slate-200 dark:border-slate-800 shrink-0">
-          <div className={`flex items-center rounded-xl sm:rounded-2xl transition-all ${isShapeTool ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+          <div className={`flex items-center rounded-xl sm:rounded-2xl transition-all ${isShapeTool ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
             <button
               type="button"
               onPointerDown={(e) => e.stopPropagation()}
@@ -731,7 +731,7 @@ export default function CanvasToolbar({
                 }
               }}
               title="Shape Tool (Click to draw, arrow to pick shape)"
-              className="p-2 sm:p-2.5 pr-0.5 rounded-l-xl sm:rounded-l-2xl flex items-center cursor-pointer"
+              className="p-2 sm:p-2.5 pr-0.5 rounded-l-xl sm:rounded-l-2xl flex items-center cursor-pointer active:scale-95"
             >
               <CurrentShapeIcon className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
             </button>
@@ -743,7 +743,7 @@ export default function CanvasToolbar({
                 togglePopover('shape');
               }}
               title="Choose Shape"
-              className="p-2 sm:p-2.5 pl-0.5 pr-2 rounded-r-xl sm:rounded-r-2xl opacity-75 hover:opacity-100 cursor-pointer"
+              className="p-2 sm:p-2.5 pl-0.5 pr-2 rounded-r-xl sm:rounded-r-2xl opacity-75 hover:opacity-100 cursor-pointer active:scale-95"
             >
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
@@ -756,9 +756,9 @@ export default function CanvasToolbar({
             type="button"
             onClick={() => setTool('pan')}
             title="Hand / Pan Canvas (H or hold Spacebar)"
-            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer transition-all ${
+            className={`p-2 sm:p-2.5 rounded-xl sm:rounded-2xl cursor-pointer active:scale-95 transition-all ${
               tool === 'pan'
-                ? 'bg-indigo-600 text-white shadow-sm'
+                ? 'bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-500/25'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
             }`}
           >

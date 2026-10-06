@@ -22,7 +22,8 @@ import {
   RotateCcw,
   Trash2,
   Eraser,
-  ChevronDown
+  ChevronDown,
+  Plus
 } from 'lucide-react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { useCollabSocket } from '@/lib/collaboration/useCollabSocket';
@@ -145,8 +146,25 @@ function NotebookEditorSession({
   const [showPaperStyleModal, setShowPaperStyleModal] = useState(false);
   const [showBackgroundMenu, setShowBackgroundMenu] = useState(false);
   const [showManageMenu, setShowManageMenu] = useState(false);
+  const [showMobilePageMenu, setShowMobilePageMenu] = useState(false);
+  const [editingTitleId, setEditingTitleId] = useState(null);
+  const [tempTitle, setTempTitle] = useState('');
   const headerMenuRef = useRef(null);
   const manageMenuRef = useRef(null);
+  const mobilePageMenuRef = useRef(null);
+
+  const handleStartRename = (page, e) => {
+    e.stopPropagation();
+    setEditingTitleId(page.id);
+    setTempTitle(page.title);
+  };
+
+  const handleFinishRename = (pageId) => {
+    if (tempTitle.trim()) {
+      handleUpdatePage(pageId, { title: tempTitle.trim() });
+    }
+    setEditingTitleId(null);
+  };
 
   // Close header menus when clicking outside
   useEffect(() => {
@@ -156,6 +174,9 @@ function NotebookEditorSession({
       }
       if (manageMenuRef.current && !manageMenuRef.current.contains(e.target)) {
         setShowManageMenu(false);
+      }
+      if (mobilePageMenuRef.current && !mobilePageMenuRef.current.contains(e.target)) {
+        setShowMobilePageMenu(false);
       }
     };
     document.addEventListener('pointerdown', handleOutside);
@@ -543,216 +564,302 @@ function NotebookEditorSession({
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col bg-slate-100 dark:bg-slate-950 select-none">
       
-      {/* Top Header Bar: overflow-visible ensures Paper Design and Management dropdowns flow seamlessly over canvas */}
-      <header className="absolute top-0 left-0 right-0 z-30 h-14 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 px-3 sm:px-4 flex items-center justify-between shadow-2xs text-slate-900 dark:text-slate-100 min-w-0 overflow-visible">
-        
-        {/* Left: Back & Title */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 mr-2 sm:mr-4">
-          <button
-            type="button"
-            onClick={() => router.push('/dashboard')}
-            title="Back to Dashboard"
-            className="p-2 rounded-xl text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-2">
-            <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate max-w-[100px] xs:max-w-[140px] sm:max-w-xs">
-              {notebook?.title}
-            </h1>
-            {notebook?.visibility === 'shared' ? (
-              <span title="Shared notebook">
-                <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              </span>
-            ) : (
-              <span title="Private notebook">
-                <Lock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Center: Sync Status & Presence */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 mr-2 sm:mr-4">
-          <SyncStatusBadge />
-          <div className="hidden md:flex items-center">
-            <PresenceBar currentUser={currentUser} />
-          </div>
-        </div>
-
-        {/* Right: Actions (Pair Tablet, Share, Page Design, History, Export, Dark Theme) */}
-        <div ref={headerMenuRef} className="flex items-center gap-1 sm:gap-1.5 shrink-0 overflow-visible">
-          
-          {/* Connect Drawing Tablet Button */}
-          <button
-            type="button"
-            onClick={() => setShowPairingModal(true)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 font-semibold text-xs transition-colors shadow-2xs shrink-0"
-            title="Use iPad or tablet as drawing surface for this PC"
-          >
-            <Tablet className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="whitespace-nowrap hidden md:inline">Connect Tablet</span>
-          </button>
-
-          {/* Share Button */}
-          <button
-            type="button"
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors shrink-0"
-            title="Share & invite collaborators"
-          >
-            <Share2 className="w-4 h-4" />
-            <span className="whitespace-nowrap hidden sm:inline">Share</span>
-          </button>
-
-          {/* Page Paper Design Dropdown & Dialog Trigger */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                setShowPaperStyleModal(true);
-                setShowManageMenu(false);
-              }}
-              title="Page Paper Style Dialog (Dotted, Grid, Ruled, Blank)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
-            >
-              <Grid className="w-4 h-4 text-indigo-500" />
-              <span className="capitalize whitespace-nowrap hidden sm:inline">{activePage?.background_type || 'dotted'}</span>
-              <ChevronDown className="w-3 h-3 opacity-60 hidden lg:inline" />
-            </button>
-
-            {showBackgroundMenu && (
-              <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
-                <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Paper Design
-                </div>
-                {BACKGROUND_TYPES.map((b) => {
-                  const Icon = b.icon;
-                  const isSelected = (activePage?.background_type || 'dotted') === b.id;
-                  return (
-                    <button
-                      key={b.id}
-                      type="button"
-                      onClick={() => {
-                        handleUpdatePage(activePage.id, { background_type: b.id });
-                        setShowBackgroundMenu(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-medium transition-colors ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white shadow-xs'
-                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Icon className="w-3.5 h-3.5" />
-                        <span>{b.label}</span>
-                      </div>
-                      {isSelected && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Version Snapshots Button */}
-          <button
-            type="button"
-            onClick={() => setShowSnapshotModal(true)}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
-            title="Version History & Snapshots"
-          >
-            <History className="w-4 h-4" />
-          </button>
-
-          {/* Export PNG */}
-          <button
-            type="button"
-            onClick={handleExportPNG}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
-            title="Export page as image"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-
-          {/* Dark Mode Toggle */}
-          <button
-            type="button"
-            onClick={handleToggleDark}
-            className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
-            title={darkMode ? 'Switch to Light Canvas' : 'Switch to Dark Canvas'}
-          >
-            {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
-          </button>
-
-          {/* Notebook Management Actions Menu (Clear overall, delete permanently) */}
-          {canEdit && (
-            <div ref={manageMenuRef} className="relative shrink-0">
+      {/* Unified Floating Studio Command Island */}
+      <div className="fixed top-3 sm:top-4 inset-x-3 sm:inset-x-6 z-30 pointer-events-none flex justify-center">
+        <div className="pointer-events-auto w-full max-w-7xl p-1.5 rounded-2xl sm:rounded-full bg-slate-900/5 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] shadow-[0_16px_36px_-8px_rgba(0,0,0,0.14),0_4px_12px_-2px_rgba(0,0,0,0.06)] backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/5">
+          <header className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-[calc(1rem-2px)] sm:rounded-full bg-white/95 dark:bg-[#0c0e15]/95 backdrop-blur-xl border border-slate-200/70 dark:border-white/[0.06] flex items-center justify-between gap-2 sm:gap-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] select-none">
+            
+            {/* Left Zone: Dashboard Return & Notebook Title */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
               <button
                 type="button"
-                onClick={() => {
-                  setShowManageMenu(!showManageMenu);
-                  setShowBackgroundMenu(false);
-                }}
-                title="Notebook Options & Management"
-                className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                onClick={() => router.push('/dashboard')}
+                title="Back to Dashboard"
+                className="p-1.5 sm:p-2 rounded-full text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 cursor-pointer"
               >
-                <MoreVertical className="w-4 h-4" />
+                <ArrowLeft className="w-4 h-4" />
               </button>
 
-              {showManageMenu && (
-                <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
-                  <div className="px-2.5 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Notebook Management
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate max-w-[100px] xs:max-w-[140px] sm:max-w-[200px] tracking-tight">
+                  {notebook?.title}
+                </h1>
+                {notebook?.visibility === 'shared' ? (
+                  <span title="Shared notebook" className="p-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shrink-0">
+                    <Globe className="w-3 h-3" />
+                  </span>
+                ) : (
+                  <span title="Private notebook" className="p-1 rounded-md bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 shrink-0">
+                    <Lock className="w-3 h-3" />
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Center Zone: Natively Integrated Page Switcher Tabs */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Desktop Page Switcher Pills */}
+              <div className="hidden md:flex items-center gap-1 px-1.5 py-1 rounded-full bg-slate-100/80 dark:bg-[#12141e] border border-slate-200/70 dark:border-white/[0.06]">
+                <div className="flex items-center gap-1 max-w-[180px] lg:max-w-xs xl:max-w-md overflow-x-auto no-scrollbar">
+                  {pages.map((p) => {
+                    const isActive = p.id === activePageId;
+                    const isEditing = editingTitleId === p.id;
+
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => handleSelectPage(p.id)}
+                        className={`group relative flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-all ${
+                          isActive
+                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
+                        }`}
+                      >
+                        {isEditing ? (
+                          <input
+                            type="text"
+                            value={tempTitle}
+                            autoFocus
+                            onChange={(e) => setTempTitle(e.target.value)}
+                            onBlur={() => handleFinishRename(p.id)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleFinishRename(p.id)}
+                            className="bg-white dark:bg-slate-800 border border-indigo-400 rounded-md px-1.5 py-0.5 text-xs text-indigo-900 dark:text-white w-20 focus:outline-none"
+                          />
+                        ) : (
+                          <span
+                            onDoubleClick={(e) => canEdit && handleStartRename(p, e)}
+                            title="Double-click to rename page"
+                            className="truncate max-w-[85px] lg:max-w-[110px]"
+                          >
+                            {p.title}
+                          </span>
+                        )}
+
+                        {isActive && canEdit && pages.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Delete ${p.title}?`)) handleDeletePage(p.id);
+                            }}
+                            title="Delete page"
+                            className="opacity-0 group-hover:opacity-100 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 rounded transition-opacity cursor-pointer"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={handleCreatePage}
+                    title="Add New Page"
+                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/60 rounded-full transition-all border border-dashed border-slate-300 dark:border-slate-700 shrink-0 cursor-pointer active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline text-[11px]">Page</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Mobile Compact Page Switcher Dropdown */}
+              <div ref={mobilePageMenuRef} className="relative flex md:hidden items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMobilePageMenu(!showMobilePageMenu)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 cursor-pointer"
+                >
+                  <span className="truncate max-w-[70px]">{activePage?.title || 'Page'}</span>
+                  <span className="text-[10px] text-slate-400">({pages.findIndex((p) => p.id === activePage?.id) + 1}/{pages.length})</span>
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
+                </button>
+
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={handleCreatePage}
+                    title="Add New Page"
+                    className="p-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 cursor-pointer active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {showMobilePageMenu && (
+                  <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
+                    <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      Switch Page
+                    </div>
+                    {pages.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          handleSelectPage(p.id);
+                          setShowMobilePageMenu(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                          p.id === activePageId
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <span className="truncate">{p.title}</span>
+                        {p.id === activePageId && <Check className="w-3.5 h-3.5" />}
+                      </button>
+                    ))}
                   </div>
+                )}
+              </div>
 
+              {/* Sync Status Badge & Live Presence */}
+              <div className="hidden sm:flex items-center gap-2">
+                <SyncStatusBadge />
+                <div className="hidden xl:flex items-center">
+                  <PresenceBar currentUser={currentUser} />
+                </div>
+              </div>
+            </div>
+
+            {/* Right Zone: Studio CTAs, Actions & Modals */}
+            <div ref={headerMenuRef} className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              
+              {/* Button-in-button Tablet Pairing CTA */}
+              <button
+                type="button"
+                onClick={() => setShowPairingModal(true)}
+                className="group flex items-center gap-1.5 pl-2.5 sm:pl-3 pr-1 sm:pr-1.5 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-sm shadow-indigo-500/25 active:scale-95 transition-all shrink-0 cursor-pointer"
+                title="Pair iPad or tablet as drawing surface for this PC"
+              >
+                <span className="whitespace-nowrap hidden sm:inline text-[11px] font-semibold tracking-wide">Pair Tablet</span>
+                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <Tablet className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
+                </div>
+              </button>
+
+              {/* Page Paper Style Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setShowPaperStyleModal(true)}
+                title="Page Paper Style Dialog (Dotted, Grid, Ruled, Blank)"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-200/60 dark:border-white/[0.06] transition-all cursor-pointer active:scale-95 shrink-0"
+              >
+                <Grid className="w-3.5 h-3.5 text-indigo-500" />
+                <span className="capitalize whitespace-nowrap hidden md:inline text-[11px]">{activePage?.background_type || 'dotted'}</span>
+              </button>
+
+              {/* Share Notebook Modal Button */}
+              <button
+                type="button"
+                onClick={() => setShowShareModal(true)}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-200/60 dark:border-white/[0.06] transition-all cursor-pointer active:scale-95 shrink-0"
+                title="Share & invite collaborators"
+              >
+                <Share2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                <span className="whitespace-nowrap hidden lg:inline text-[11px]">Share</span>
+              </button>
+
+              {/* Version History / Snapshots Modal */}
+              <button
+                type="button"
+                onClick={() => setShowSnapshotModal(true)}
+                className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                title="Version History & Snapshots"
+              >
+                <History className="w-4 h-4" />
+              </button>
+
+              {/* Export Canvas as PNG */}
+              <button
+                type="button"
+                onClick={handleExportPNG}
+                className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                title="Export page as image"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+
+              {/* Dark / Light Canvas Theme Toggle */}
+              <button
+                type="button"
+                onClick={handleToggleDark}
+                className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
+                title={darkMode ? 'Switch to Light Canvas' : 'Switch to Dark Canvas'}
+              >
+                {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+              </button>
+
+              {/* Notebook Management Actions Menu */}
+              {canEdit && (
+                <div ref={manageMenuRef} className="relative shrink-0">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowManageMenu(false);
-                      handleClearCanvas();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    onClick={() => setShowManageMenu(!showManageMenu)}
+                    title="Notebook Options & Management"
+                    className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
                   >
-                    <Eraser className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Clear Current Page Canvas</span>
+                    <MoreVertical className="w-4 h-4" />
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowManageMenu(false);
-                      setShowClearNotebookModal(true);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Clear Notebook Overall</span>
-                  </button>
+                  {showManageMenu && (
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
+                      <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Notebook Management
+                      </div>
 
-                  <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowManageMenu(false);
+                          handleClearCanvas();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                      >
+                        <Eraser className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Clear Current Page Canvas</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowManageMenu(false);
-                      handleDeleteNotebookPermanently();
-                    }}
-                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete Notebook Permanently</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowManageMenu(false);
+                          setShowClearNotebookModal(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Clear Notebook Overall</span>
+                      </button>
+
+                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowManageMenu(false);
+                          handleDeleteNotebookPermanently();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete Notebook Permanently</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          )}
-        </div>
-      </header>
 
-      {/* Main Interactive Drawing Canvas */}
-      <main className="flex-1 w-full h-full pt-14 relative overflow-hidden">
+          </header>
+        </div>
+      </div>
+
+      {/* Full-Bleed Edge-to-Edge Drawing Canvas */}
+      <main className="absolute inset-0 w-full h-full overflow-hidden">
         <DrawingCanvas
           documentState={documentState}
           onSendOp={sendOp}
@@ -761,20 +868,6 @@ function NotebookEditorSession({
           readOnly={!canEdit}
         />
       </main>
-
-      {/* Floating Page Navigation: overflow-visible ensures paper style dropdowns and renaming never clip */}
-      <div className="fixed top-16 left-3 sm:left-6 z-20 max-w-[calc(100vw-24px)] overflow-visible">
-        <PageNavigation
-          pages={pages}
-          activePageId={activePage?.id}
-          onSelectPage={handleSelectPage}
-          onCreatePage={handleCreatePage}
-          onUpdatePage={handleUpdatePage}
-          onDeletePage={handleDeletePage}
-          canEdit={canEdit}
-          onOpenPaperStyleModal={() => setShowPaperStyleModal(true)}
-        />
-      </div>
 
       {/* Floating Canvas Toolbar */}
       <CanvasToolbar
