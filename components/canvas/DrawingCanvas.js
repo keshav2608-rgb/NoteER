@@ -180,8 +180,17 @@ export default function DrawingCanvas({
 
   useEffect(() => {
     resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-    return () => window.removeEventListener('resize', resizeCanvas);
+    const container = containerRef.current;
+    if (container && typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => {
+        resizeCanvas();
+      });
+      observer.observe(container);
+      return () => observer.disconnect();
+    } else {
+      window.addEventListener('resize', resizeCanvas);
+      return () => window.removeEventListener('resize', resizeCanvas);
+    }
   }, [resizeCanvas]);
 
   useEffect(() => {
@@ -278,10 +287,24 @@ export default function DrawingCanvas({
         e.preventDefault();
       }
       if (e.ctrlKey || e.metaKey) {
-        // Zoom
-        const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-        const newZoom = Math.min(Math.max(zoomRef.current * zoomFactor, 0.25), 4.0);
-        setZoom(newZoom);
+        // Zoom anchored at mouse position
+        const rect = container.getBoundingClientRect();
+        const screenX = e.clientX - rect.left;
+        const screenY = e.clientY - rect.top;
+        const currentZ = zoomRef.current;
+        const currentPan = panRef.current;
+
+        const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+        const newZoom = Math.min(Math.max(currentZ * zoomFactor, 0.25), 4.0);
+
+        if (newZoom !== currentZ) {
+          const worldX = (screenX - currentPan.x) / currentZ;
+          const worldY = (screenY - currentPan.y) / currentZ;
+          const newPanX = screenX - worldX * newZoom;
+          const newPanY = screenY - worldY * newZoom;
+          setPan(newPanX, newPanY);
+          setZoom(newZoom);
+        }
       } else {
         // Pan
         setPan(panRef.current.x - e.deltaX, panRef.current.y - e.deltaY);
@@ -393,10 +416,14 @@ export default function DrawingCanvas({
         width: 320,
         text: '',
         color: textColor,
+        style: 'yellow',
         fontSize: 18
       };
       newlyCreatedBlockIdRef.current = newBlock.id;
+      pushUndo({ type: 'text:delete', textBlockId: newBlock.id, textBlock: newBlock });
       onSendOp({ type: 'text:update', textBlock: newBlock });
+      // Switch back to select tool so clicking outside does not spawn more empty notes
+      setTool('select');
       return;
     }
 
@@ -434,7 +461,7 @@ export default function DrawingCanvas({
       activePointersRef.current.set(e.pointerId, { x: screenX, y: screenY });
     }
 
-    // Handle 2-finger pinch zoom & pan
+    // Handle 2-finger pinch zoom & pan anchored at pinch midpoint
     if (activePointersRef.current.size === 2 && pinchStartRef.current) {
       const pts = Array.from(activePointersRef.current.values());
       const newDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
@@ -443,14 +470,16 @@ export default function DrawingCanvas({
 
       const newMidX = (pts[0].x + pts[1].x) / 2;
       const newMidY = (pts[0].y + pts[1].y) / 2;
-      const dx = newMidX - pinchStartRef.current.midX;
-      const dy = newMidY - pinchStartRef.current.midY;
+
+      // Focal world point anchored at midpoint
+      const worldMidX = (pinchStartRef.current.midX - pinchStartRef.current.initialPan.x) / pinchStartRef.current.initialZoom;
+      const worldMidY = (pinchStartRef.current.midY - pinchStartRef.current.initialPan.y) / pinchStartRef.current.initialZoom;
+
+      const newPanX = newMidX - worldMidX * newZoom;
+      const newPanY = newMidY - worldMidY * newZoom;
 
       setZoom(newZoom);
-      setPan(
-        pinchStartRef.current.initialPan.x + dx,
-        pinchStartRef.current.initialPan.y + dy
-      );
+      setPan(newPanX, newPanY);
       return;
     }
 

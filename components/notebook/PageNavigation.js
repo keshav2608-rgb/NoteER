@@ -20,7 +20,8 @@ export default function PageNavigation({
   onCreatePage,
   onUpdatePage,
   onDeletePage,
-  canEdit = true
+  canEdit = true,
+  onOpenPaperStyleModal
 }) {
   const [editingTitleId, setEditingTitleId] = useState(null);
   const [tempTitle, setTempTitle] = useState('');
@@ -122,10 +123,17 @@ export default function PageNavigation({
         <div className="relative pl-1.5 border-l border-slate-200 dark:border-slate-800">
           <button
             type="button"
-            onClick={() => setShowBgMenu(!showBgMenu)}
-            title="Page paper style"
-            className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+            onClick={() => {
+              if (onOpenPaperStyleModal) {
+                onOpenPaperStyleModal();
+              } else {
+                setShowBgMenu(!showBgMenu);
+              }
+            }}
+            title="Page Paper Style Dialog (Dotted, Grid, Ruled, Blank)"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors"
           >
+            <Grid className="w-3.5 h-3.5 text-indigo-500" />
             <span className="capitalize">{activePage.background_type || 'Dotted'}</span>
             <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>

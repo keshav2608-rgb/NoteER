@@ -94,7 +94,8 @@ export default function CanvasToolbar({
   onClear,
   onClearNotebook,
   backgroundType = 'dotted',
-  onUpdateBackground
+  onUpdateBackground,
+  onOpenPaperStyleModal
 }) {
   const {
     tool,
@@ -743,7 +744,11 @@ export default function CanvasToolbar({
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
-              setShowPaperPopover(!showPaperPopover);
+              if (onOpenPaperStyleModal) {
+                onOpenPaperStyleModal();
+              } else {
+                setShowPaperPopover(!showPaperPopover);
+              }
               setShowThicknessPopover(false);
               setShowSettingsPopover(false);
               setShowShapePicker(false);

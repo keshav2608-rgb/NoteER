@@ -523,7 +523,8 @@ export default function RemotePadCanvas({
         width: 320,
         text: '',
         color: textColor,
-        fontSize: Math.max(16, strokeWidth * 3)
+        fontSize: Math.max(16, strokeWidth * 3),
+        style: 'yellow'
       };
       newlyCreatedBlockIdRef.current = newBlock.id;
       onSendOp({ type: 'text:update', textBlock: newBlock });

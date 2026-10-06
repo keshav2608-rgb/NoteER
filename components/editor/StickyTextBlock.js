@@ -1,7 +1,77 @@
 'use client';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
-import { Trash2, Move, Plus, Minus } from 'lucide-react';
+import {
+  Trash2,
+  Move,
+  Plus,
+  Minus,
+  Bold,
+  Italic,
+  AlignLeft,
+  AlignCenter,
+  Palette,
+  GripVertical
+} from 'lucide-react';
+
+const NOTE_STYLES = [
+  {
+    id: 'yellow',
+    label: 'Yellow Sticky',
+    bgClass: 'bg-amber-100/95 dark:bg-amber-950/80 border-amber-300/90 dark:border-amber-700/80 text-amber-950 dark:text-amber-100 shadow-md',
+    swatch: '#fde047',
+    defaultText: '#451a03',
+    darkText: '#fef3c7'
+  },
+  {
+    id: 'blue',
+    label: 'Sky Note',
+    bgClass: 'bg-sky-100/95 dark:bg-sky-950/80 border-sky-300/90 dark:border-sky-700/80 text-sky-950 dark:text-sky-100 shadow-md',
+    swatch: '#38bdf8',
+    defaultText: '#082f49',
+    darkText: '#e0f2fe'
+  },
+  {
+    id: 'green',
+    label: 'Mint Note',
+    bgClass: 'bg-emerald-100/95 dark:bg-emerald-950/80 border-emerald-300/90 dark:border-emerald-700/80 text-emerald-950 dark:text-emerald-100 shadow-md',
+    swatch: '#4ade80',
+    defaultText: '#064e3b',
+    darkText: '#d1fae5'
+  },
+  {
+    id: 'purple',
+    label: 'Lavender',
+    bgClass: 'bg-purple-100/95 dark:bg-purple-950/80 border-purple-300/90 dark:border-purple-700/80 text-purple-950 dark:text-purple-100 shadow-md',
+    swatch: '#c084fc',
+    defaultText: '#3b0764',
+    darkText: '#f3e8ff'
+  },
+  {
+    id: 'pink',
+    label: 'Rose Pink',
+    bgClass: 'bg-rose-100/95 dark:bg-rose-950/80 border-rose-300/90 dark:border-rose-700/80 text-rose-950 dark:text-rose-100 shadow-md',
+    swatch: '#fb7185',
+    defaultText: '#4c0519',
+    darkText: '#ffe4e6'
+  },
+  {
+    id: 'card',
+    label: 'Modern Card',
+    bgClass: 'bg-white/95 dark:bg-slate-900/95 border-slate-200/90 dark:border-slate-800 text-slate-900 dark:text-slate-100 shadow-lg backdrop-blur-md',
+    swatch: '#ffffff',
+    defaultText: '#0f172a',
+    darkText: '#f8fafc'
+  },
+  {
+    id: 'transparent',
+    label: 'Transparent',
+    bgClass: 'bg-transparent border-dashed border-slate-300/50 dark:border-slate-700/50 text-slate-900 dark:text-slate-100',
+    swatch: 'transparent',
+    defaultText: '#0f172a',
+    darkText: '#f8fafc'
+  }
+];
 
 export default function StickyTextBlock({
   block,
@@ -25,14 +95,17 @@ export default function StickyTextBlock({
   const [isFocused, setIsFocused] = useState(Boolean(autoFocus));
   const [isHovered, setIsHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   const textareaRef = useRef(null);
   const dragStartRef = useRef({ startX: 0, startY: 0, initialBlockX: block.x, initialBlockY: block.y });
+  const resizeStartRef = useRef({ startX: 0, initialWidth: block.width || 320 });
   const debounceTimerRef = useRef(null);
   const localTextRef = useRef(localText);
   localTextRef.current = localText;
 
-  // Auto-focus with micro-delay so container pointerup/click doesn't steal focus
+  // Auto-focus with micro-delay so container pointerup doesn't steal focus
   useEffect(() => {
     if (autoFocus && textareaRef.current) {
       const t = setTimeout(() => {
@@ -47,14 +120,14 @@ export default function StickyTextBlock({
     }
   }, [autoFocus]);
 
-  // Sync incoming text updates from remote peers when the local user is NOT actively typing
+  // Sync incoming text updates from remote peers when local user is NOT typing
   useEffect(() => {
     if (!isFocused && block.text !== undefined && block.text !== localTextRef.current) {
       setLocalText(block.text || '');
     }
   }, [block.text, isFocused]);
 
-  // Clean up any pending debounce timers on unmount
+  // Clean up debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -67,15 +140,14 @@ export default function StickyTextBlock({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.max(34, textareaRef.current.scrollHeight)}px`;
+      textareaRef.current.style.height = `${Math.max(40, textareaRef.current.scrollHeight)}px`;
     }
-  }, [localText, block.fontSize]);
+  }, [localText, block.fontSize, block.width]);
 
   const handleTextChange = (e) => {
     const val = e.target.value;
     setLocalText(val);
 
-    // Debounce remote broadcast by 200ms to keep typing silky smooth with no caret jumping
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -85,18 +157,18 @@ export default function StickyTextBlock({
   };
 
   const handleBlur = (e) => {
-    // If blurring to controls within this block, or while actively dragging, do not delete
-    if (isDragging) return;
+    if (isDragging || isResizing) return;
     if (e?.relatedTarget && e.currentTarget?.contains?.(e?.relatedTarget)) {
       return;
     }
     setIsFocused(false);
+    setShowColorPicker(false);
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
       debounceTimerRef.current = null;
     }
 
-    // Auto-clean: If text is completely empty, remove block so empty ghost blocks never linger
+    // Auto-clean: If text is completely empty, remove block
     if (!localTextRef.current || !localTextRef.current.trim()) {
       if (onDelete) {
         onDelete(block.id);
@@ -113,13 +185,14 @@ export default function StickyTextBlock({
     if (e.key === 'Escape') {
       textareaRef.current?.blur();
       setIsFocused(false);
+      setShowColorPicker(false);
     }
     if ((e.key === 'Backspace' || e.key === 'Delete') && !localText && onDelete) {
       onDelete(block.id);
     }
   };
 
-  // Pointer drag handler with pointer capture (works for both mouse and touch/stylus)
+  // Drag movement
   const handleDragPointerDown = (e) => {
     if (!canEdit) return;
     e.stopPropagation();
@@ -158,20 +231,86 @@ export default function StickyTextBlock({
     }
   };
 
+  // Width resizing
+  const handleResizePointerDown = (e) => {
+    if (!canEdit) return;
+    e.stopPropagation();
+    try {
+      e.target.setPointerCapture?.(e.pointerId);
+    } catch (_) {}
+    setIsResizing(true);
+    resizeStartRef.current = {
+      startX: e.clientX,
+      initialWidth: block.width || 320
+    };
+  };
+
+  const handleResizePointerMove = (e) => {
+    if (!isResizing) return;
+    e.stopPropagation();
+    const dx = (e.clientX - resizeStartRef.current.startX) / zoom;
+    const newWidth = Math.max(200, Math.min(800, Math.round(resizeStartRef.current.initialWidth + dx)));
+    onUpdate({
+      ...block,
+      text: localTextRef.current,
+      width: newWidth
+    });
+  };
+
+  const handleResizePointerUp = (e) => {
+    if (isResizing) {
+      e.stopPropagation();
+      setIsResizing(false);
+      try {
+        e.target.releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
+    }
+  };
+
+  // Formatting helpers
   const changeFontSize = (delta) => {
     const curSize = block.fontSize || 18;
     const nextSize = Math.max(12, Math.min(64, curSize + delta));
     onUpdate({ ...block, fontSize: nextSize, text: localTextRef.current });
   };
 
-  // Determine textColor
-  let textColor = block.color;
-  if (!textColor || textColor === '#fffbeb' || textColor === '#fef08a') {
-    textColor = darkMode ? '#f8fafc' : '#0f172a';
-  }
+  const toggleBold = () => {
+    const next = block.fontWeight === 'bold' ? 'normal' : 'bold';
+    onUpdate({ ...block, fontWeight: next, text: localTextRef.current });
+  };
+
+  const toggleItalic = () => {
+    const next = block.fontStyle === 'italic' ? 'normal' : 'italic';
+    onUpdate({ ...block, fontStyle: next, text: localTextRef.current });
+  };
+
+  const toggleAlign = () => {
+    const next = block.textAlign === 'center' ? 'left' : 'center';
+    onUpdate({ ...block, textAlign: next, text: localTextRef.current });
+  };
+
+  const selectStyle = (styleId) => {
+    onUpdate({ ...block, style: styleId, text: localTextRef.current });
+    setShowColorPicker(false);
+  };
+
+  // Determine active note style
+  const currentStyleId = block.style || 'yellow';
+  const currentStyle = NOTE_STYLES.find((s) => s.id === currentStyleId) || NOTE_STYLES[0];
 
   const baseFontSize = block.fontSize || 18;
-  const showControls = canEdit && (isHovered || isFocused || isDragging);
+  const isBold = block.fontWeight === 'bold';
+  const isItalic = block.fontStyle === 'italic';
+  const isCentered = block.textAlign === 'center';
+  const showControls = canEdit && (isHovered || isFocused || isDragging || isResizing || showColorPicker);
+
+  const blockWidth = block.width || 320;
+
+  // Text color based on style and dark mode
+  let textColor = darkMode ? currentStyle.darkText : currentStyle.defaultText;
+  if (block.color && currentStyleId === 'transparent') {
+    textColor = block.color;
+  }
 
   return (
     <div
@@ -179,7 +318,6 @@ export default function StickyTextBlock({
       onPointerDown={(e) => {
         if (!isPanMode) {
           e.stopPropagation();
-          // Clicking anywhere on the text block activates and focuses it
           if (e.target !== textareaRef.current && !e.target.closest?.('button')) {
             textareaRef.current?.focus();
           }
@@ -187,19 +325,19 @@ export default function StickyTextBlock({
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`absolute top-0 left-0 z-10 group select-text touch-auto transition-all ${
+      className={`absolute top-0 left-0 z-10 group rounded-2xl border transition-all ${
         isPanMode ? 'pointer-events-none' : 'pointer-events-auto'
-      } ${
-        isFocused || isDragging
-          ? 'ring-2 ring-indigo-500 rounded-xl bg-white/70 dark:bg-slate-900/70 shadow-md backdrop-blur-xs'
+      } ${currentStyle.bgClass} ${
+        isFocused || isDragging || isResizing
+          ? 'ring-2 ring-indigo-500/80 shadow-xl'
           : isHovered
-          ? 'ring-1 ring-slate-300 dark:ring-slate-700 rounded-xl bg-white/30 dark:bg-slate-900/30'
-          : 'rounded-xl'
+          ? 'ring-1 ring-indigo-400/50 shadow-lg'
+          : ''
       }`}
       style={{
         transform: `translate3d(${block.x}px, ${block.y}px, 0)`,
-        width: `${block.width || 320}px`,
-        touchAction: isDragging ? 'none' : 'auto',
+        width: `${blockWidth}px`,
+        touchAction: isDragging || isResizing ? 'none' : 'auto',
         userSelect: 'text'
       }}
     >
@@ -207,7 +345,7 @@ export default function StickyTextBlock({
       {showControls && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute -top-9 left-0 flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 shadow-lg text-slate-700 dark:text-slate-300 z-20 animate-in fade-in duration-100 select-none pointer-events-auto"
+          className="absolute -top-11 left-0 flex items-center gap-1 bg-white/98 dark:bg-slate-900/98 backdrop-blur-md border border-slate-200/90 dark:border-slate-800 rounded-2xl px-2 py-1 shadow-xl text-slate-700 dark:text-slate-300 z-30 animate-in fade-in zoom-in-95 select-none pointer-events-auto"
         >
           {/* Drag to move handle */}
           <div
@@ -216,37 +354,122 @@ export default function StickyTextBlock({
             onPointerUp={handleDragPointerUp}
             onPointerCancel={handleDragPointerUp}
             title="Drag to move note anywhere on canvas"
-            className="flex items-center gap-1 px-1.5 py-0.5 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing text-xs font-semibold transition-colors"
+            className="flex items-center gap-1 px-1.5 py-0.5 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-grab active:cursor-grabbing text-xs font-semibold rounded-lg transition-colors"
           >
             <Move className="w-3.5 h-3.5 text-indigo-500" />
-            <span>Move</span>
+            <span className="hidden sm:inline">Move</span>
+          </div>
+
+          <span className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+          {/* Note Style / Color Swatches Picker */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              title="Change sticky note color & style"
+              className="flex items-center gap-1 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+            >
+              <div
+                className="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-600 shadow-2xs"
+                style={{ backgroundColor: currentStyle.swatch === 'transparent' ? '#ffffff' : currentStyle.swatch }}
+              />
+              <Palette className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {/* Color Palette Popover */}
+            {showColorPicker && (
+              <div
+                onPointerDown={(e) => e.stopPropagation()}
+                className="absolute bottom-full left-0 mb-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-2xl flex items-center gap-1.5 z-40 animate-in fade-in zoom-in-95"
+              >
+                {NOTE_STYLES.map((style) => (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => selectStyle(style.id)}
+                    title={style.label}
+                    className={`w-6 h-6 rounded-full border transition-transform cursor-pointer ${
+                      currentStyleId === style.id
+                        ? 'scale-125 ring-2 ring-indigo-500 ring-offset-2 dark:ring-offset-slate-900 border-white'
+                        : 'border-slate-300 dark:border-slate-600 hover:scale-110'
+                    }`}
+                    style={{
+                      backgroundColor: style.swatch === 'transparent' ? '#f1f5f9' : style.swatch
+                    }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <span className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
 
           {/* Font size adjustments */}
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => changeFontSize(-2)}
+              title="Decrease font size"
+              className="p-1 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+            >
+              <Minus className="w-3 h-3" />
+            </button>
+            <span className="text-[11px] font-mono px-1 font-semibold min-w-[28px] text-center">
+              {baseFontSize}px
+            </span>
+            <button
+              type="button"
+              onClick={() => changeFontSize(2)}
+              title="Increase font size"
+              className="p-1 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+            >
+              <Plus className="w-3 h-3" />
+            </button>
+          </div>
+
+          <span className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
+
+          {/* Bold Toggle */}
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              changeFontSize(-2);
-            }}
-            title="Decrease font size"
-            className="p-1 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+            onClick={toggleBold}
+            title={isBold ? 'Unbold' : 'Bold text'}
+            className={`p-1 rounded-lg transition-colors cursor-pointer ${
+              isBold
+                ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-bold'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+            }`}
           >
-            <Minus className="w-3 h-3" />
+            <Bold className="w-3 h-3" />
           </button>
-          <span className="text-[11px] font-mono px-1 font-semibold">{baseFontSize}px</span>
+
+          {/* Italic Toggle */}
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              changeFontSize(2);
-            }}
-            title="Increase font size"
-            className="p-1 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+            onClick={toggleItalic}
+            title={isItalic ? 'Remove italic' : 'Italic text'}
+            className={`p-1 rounded-lg transition-colors cursor-pointer ${
+              isItalic
+                ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+            }`}
           >
-            <Plus className="w-3 h-3" />
+            <Italic className="w-3 h-3" />
+          </button>
+
+          {/* Text Alignment */}
+          <button
+            type="button"
+            onClick={toggleAlign}
+            title={isCentered ? 'Align left' : 'Align center'}
+            className={`p-1 rounded-lg transition-colors cursor-pointer ${
+              isCentered
+                ? 'bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            {isCentered ? <AlignCenter className="w-3 h-3" /> : <AlignLeft className="w-3 h-3" />}
           </button>
 
           <span className="w-px h-3.5 bg-slate-200 dark:bg-slate-700" />
@@ -259,35 +482,54 @@ export default function StickyTextBlock({
               onDelete(block.id);
             }}
             title="Delete text note"
-            className="p-1 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-colors"
+            className="p-1 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-500" />
           </button>
         </div>
       )}
 
-      {/* Seamless in-canvas text (written directly on canvas) */}
-      <textarea
-        ref={textareaRef}
-        value={localText}
-        readOnly={!canEdit}
-        onFocus={() => setIsFocused(true)}
-        onBlur={handleBlur}
-        onChange={handleTextChange}
-        onKeyDown={handleKeyDown}
-        placeholder={isFocused || !localText ? 'Type note here...' : ''}
-        rows={1}
-        className="w-full bg-transparent resize-none p-1.5 focus:outline-none font-sans leading-relaxed transition-all cursor-text select-text touch-auto border-0 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-        style={{
-          color: textColor,
-          fontSize: `${baseFontSize}px`,
-          lineHeight: 1.45,
-          caretColor: textColor,
-          userSelect: 'text',
-          WebkitUserSelect: 'text',
-          touchAction: 'auto'
-        }}
-      />
+      {/* Note Body Textarea */}
+      <div className="p-3 relative">
+        <textarea
+          ref={textareaRef}
+          value={localText}
+          readOnly={!canEdit}
+          onFocus={() => setIsFocused(true)}
+          onBlur={handleBlur}
+          onChange={handleTextChange}
+          onKeyDown={handleKeyDown}
+          placeholder={isFocused || !localText ? 'Type note...' : ''}
+          rows={1}
+          className="w-full bg-transparent resize-none focus:outline-none leading-relaxed transition-all cursor-text select-text touch-auto border-0 placeholder:opacity-50"
+          style={{
+            color: textColor,
+            fontSize: `${baseFontSize}px`,
+            fontWeight: isBold ? 'bold' : 'normal',
+            fontStyle: isItalic ? 'italic' : 'normal',
+            textAlign: isCentered ? 'center' : 'left',
+            lineHeight: 1.45,
+            caretColor: textColor,
+            userSelect: 'text',
+            WebkitUserSelect: 'text',
+            touchAction: 'auto'
+          }}
+        />
+      </div>
+
+      {/* Right Edge Width Resize Handle */}
+      {showControls && (
+        <div
+          onPointerDown={handleResizePointerDown}
+          onPointerMove={handleResizePointerMove}
+          onPointerUp={handleResizePointerUp}
+          onPointerCancel={handleResizePointerUp}
+          title="Drag to resize note width"
+          className="absolute right-0 top-0 bottom-0 w-3 cursor-ew-resize flex items-center justify-center text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 group-hover:opacity-100 opacity-60 transition-opacity select-none"
+        >
+          <GripVertical className="w-3.5 h-3.5" />
+        </div>
+      )}
     </div>
   );
 }

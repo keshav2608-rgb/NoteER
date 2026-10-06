@@ -377,7 +377,7 @@ async function runTests() {
   console.log('\n=== Test Suite 5: Scoped Canvas-Only Pairing Security ===');
   await testAsync('Paired tablet receives scoped stylusToken and can draw on canvas without user account access', async () => {
     // 1. Issue a pairing code for notebook
-    const code = `999-${Math.floor(100 + Math.random() * 900)}`;
+    const code = `9${Math.floor(10 + Math.random() * 90)}-${Date.now().toString().slice(-4)}`;
     const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
     const pairId = 'pair_sec_' + Date.now();
     db.run(`

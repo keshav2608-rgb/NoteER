@@ -33,6 +33,7 @@ import PresenceBar from '@/components/collaboration/PresenceBar';
 import PairingModal from '@/components/notebook/PairingModal';
 import ShareModal from '@/components/notebook/ShareModal';
 import SnapshotModal from '@/components/notebook/SnapshotModal';
+import PaperStyleModal from '@/components/notebook/PaperStyleModal';
 import { applyTheme } from '@/components/theme/ThemeToggle';
 
 export default function NotebookPage({ params }) {
@@ -140,6 +141,7 @@ function NotebookEditorSession({
   const [showPairingModal, setShowPairingModal] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSnapshotModal, setShowSnapshotModal] = useState(false);
+  const [showPaperStyleModal, setShowPaperStyleModal] = useState(false);
   const [showBackgroundMenu, setShowBackgroundMenu] = useState(false);
   const [showManageMenu, setShowManageMenu] = useState(false);
   const headerMenuRef = useRef(null);
@@ -205,7 +207,17 @@ function NotebookEditorSession({
   const handleUndo = useCallback(() => {
     const op = popUndo();
     if (op) {
-      sendOp(op);
+      if (op.type === 'text:delete') {
+        sendOp({
+          type: 'text:delete',
+          textBlockId: op.textBlockId || op.textBlock?.id,
+          textBlock: { id: op.textBlockId || op.textBlock?.id, deleted: true }
+        });
+      } else if (op.type === 'text:update') {
+        sendOp({ type: 'text:update', textBlock: op.textBlock });
+      } else {
+        sendOp(op);
+      }
     }
   }, [popUndo, sendOp]);
 
@@ -226,6 +238,11 @@ function NotebookEditorSession({
         if (op.shape?.id || op.shapeId) {
           sendOp({ type: 'shape:delete', shapeId: op.shape?.id || op.shapeId });
         }
+      } else if (op.type === 'text:delete') {
+        if (op.textBlock) sendOp({ type: 'text:update', textBlock: op.textBlock });
+      } else if (op.type === 'text:update') {
+        const bId = op.textBlock?.id || op.textBlockId;
+        if (bId) sendOp({ type: 'text:delete', textBlockId: bId, textBlock: { id: bId, deleted: true } });
       } else {
         sendOp(op);
       }
@@ -418,11 +435,90 @@ function NotebookEditorSession({
     }
   };
 
-  // Export Canvas as PNG
+  // Export Canvas as PNG (includes strokes, shapes, and text notes)
   const handleExportPNG = () => {
-    const canvas = document.querySelector('canvas');
-    if (!canvas) return;
-    const dataUrl = canvas.toDataURL('image/png');
+    const mainCanvas = document.querySelector('canvas');
+    if (!mainCanvas) return;
+
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = mainCanvas.width;
+    exportCanvas.height = mainCanvas.height;
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw main drawing canvas
+    ctx.drawImage(mainCanvas, 0, 0);
+
+    // If there are text blocks, draw them at world-to-screen coords
+    if (documentState.textBlocks && documentState.textBlocks.length > 0) {
+      const dpr = window.devicePixelRatio || 1;
+      const { zoom, panX, panY } = useNotebookStore.getState();
+
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.translate(panX, panY);
+      ctx.scale(zoom, zoom);
+
+      for (const block of documentState.textBlocks) {
+        if (!block.text || !block.text.trim()) continue;
+        const bX = block.x || 0;
+        const bY = block.y || 0;
+        const bW = block.width || 320;
+        const fSize = block.fontSize || 18;
+        const isBold = block.fontWeight === 'bold';
+        const isItalic = block.fontStyle === 'italic';
+        const isCentered = block.textAlign === 'center';
+
+        const styleId = block.style || 'yellow';
+        const bgColors = {
+          yellow: '#fef08a',
+          blue: '#e0f2fe',
+          green: '#dcfce7',
+          purple: '#f3e8ff',
+          pink: '#ffe4e6',
+          card: '#ffffff'
+        };
+        const textColors = {
+          yellow: '#451a03',
+          blue: '#082f49',
+          green: '#064e3b',
+          purple: '#3b0764',
+          pink: '#4c0519',
+          card: '#0f172a'
+        };
+
+        const lines = block.text.split('\n');
+        const lineHeight = fSize * 1.45;
+        const pad = 12;
+        const cardH = Math.max(48, lines.length * lineHeight + pad * 2);
+
+        if (bgColors[styleId]) {
+          ctx.save();
+          ctx.fillStyle = bgColors[styleId];
+          ctx.shadowColor = 'rgba(0,0,0,0.08)';
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetY = 2;
+          ctx.beginPath();
+          ctx.roundRect(bX, bY, bW, cardH, 16);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.font = `${isItalic ? 'italic ' : ''}${isBold ? 'bold ' : ''}${fSize}px sans-serif`;
+        ctx.fillStyle = textColors[styleId] || block.color || '#0f172a';
+        ctx.textAlign = isCentered ? 'center' : 'left';
+        ctx.textBaseline = 'top';
+
+        lines.forEach((line, idx) => {
+          const textX = isCentered ? bX + bW / 2 : bX + pad;
+          const textY = bY + pad + idx * lineHeight;
+          ctx.fillText(line, textX, textY);
+        });
+      }
+      ctx.restore();
+    }
+
+    const dataUrl = exportCanvas.toDataURL('image/png');
     const link = document.createElement('a');
     link.download = `${notebook?.title || 'notebook'}-${activePage?.title || 'page'}.png`;
     link.href = dataUrl;
@@ -509,20 +605,20 @@ function NotebookEditorSession({
             <span className="whitespace-nowrap hidden sm:inline">Share</span>
           </button>
 
-          {/* Page Paper Design Dropdown */}
+          {/* Page Paper Design Dropdown & Dialog Trigger */}
           <div className="relative shrink-0">
             <button
               type="button"
               onClick={() => {
-                setShowBackgroundMenu(!showBackgroundMenu);
+                setShowPaperStyleModal(true);
                 setShowManageMenu(false);
               }}
-              title="Page Paper Style (Dotted, Grid, Ruled, Blank)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors"
+              title="Page Paper Style Dialog (Dotted, Grid, Ruled, Blank)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors cursor-pointer"
             >
               <Grid className="w-4 h-4 text-indigo-500" />
               <span className="capitalize whitespace-nowrap hidden sm:inline">{activePage?.background_type || 'dotted'}</span>
-              <Check className="w-3 h-3 opacity-60 hidden lg:inline" />
+              <ChevronDown className="w-3 h-3 opacity-60 hidden lg:inline" />
             </button>
 
             {showBackgroundMenu && (
@@ -665,8 +761,8 @@ function NotebookEditorSession({
         />
       </main>
 
-      {/* Bottom Floating Page Navigation */}
-      <div className="fixed top-16 left-3 sm:left-6 z-20 max-w-[calc(100vw-24px)] overflow-x-auto no-scrollbar">
+      {/* Floating Page Navigation: overflow-visible ensures paper style dropdowns and renaming never clip */}
+      <div className="fixed top-16 left-3 sm:left-6 z-20 max-w-[calc(100vw-24px)] overflow-visible">
         <PageNavigation
           pages={pages}
           activePageId={activePage?.id}
@@ -675,6 +771,7 @@ function NotebookEditorSession({
           onUpdatePage={handleUpdatePage}
           onDeletePage={handleDeletePage}
           canEdit={canEdit}
+          onOpenPaperStyleModal={() => setShowPaperStyleModal(true)}
         />
       </div>
 
@@ -686,6 +783,25 @@ function NotebookEditorSession({
         onClearNotebook={() => setShowClearNotebookModal(true)}
         backgroundType={activePage?.background_type || 'dotted'}
         onUpdateBackground={(type) => handleUpdatePage(activePage.id, { background_type: type })}
+        onOpenPaperStyleModal={() => setShowPaperStyleModal(true)}
+      />
+
+      {/* Page Paper Style Dialog Box Modal */}
+      <PaperStyleModal
+        isOpen={showPaperStyleModal}
+        onClose={() => setShowPaperStyleModal(false)}
+        currentType={activePage?.background_type || 'dotted'}
+        pagesCount={pages.length}
+        darkMode={darkMode}
+        onSelectType={async (type, applyToAll) => {
+          if (applyToAll) {
+            for (const p of pages) {
+              await handleUpdatePage(p.id, { background_type: type });
+            }
+          } else {
+            await handleUpdatePage(activePage.id, { background_type: type });
+          }
+        }}
       />
 
       {/* Tablet-to-PC Pairing Modal */}
