@@ -39,6 +39,16 @@ export default function SnapshotModal({
       });
   }, [isOpen, notebookId]);
 
+  // Escape key handler
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const handleCreateSnapshot = async (e) => {
@@ -67,8 +77,14 @@ export default function SnapshotModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 flex flex-col gap-5 text-slate-900 dark:text-slate-100">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in select-none"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white/98 dark:bg-slate-900/98 rounded-[2rem] max-w-md w-full p-6 shadow-2xl border border-slate-200/90 dark:border-slate-800 ring-1 ring-black/5 dark:ring-white/10 flex flex-col gap-5 text-slate-900 dark:text-slate-100 animate-in zoom-in-95 duration-200"
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between">

@@ -836,10 +836,13 @@ function NotebookEditorSession({
       {/* Clear Notebook Overall In-App Confirmation Modal */}
       {showClearNotebookModal && (
         <div
-          onPointerDown={(e) => e.stopPropagation()}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in"
+          onClick={() => setShowClearNotebookModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in select-none"
         >
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl max-w-md w-full flex flex-col gap-4 text-slate-900 dark:text-slate-100">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white/98 dark:bg-slate-900/98 border border-slate-200/90 dark:border-slate-800 rounded-[2rem] p-6 shadow-2xl ring-1 ring-black/5 dark:ring-white/10 max-w-md w-full flex flex-col gap-4 text-slate-900 dark:text-slate-100 animate-in zoom-in-95 duration-200"
+          >
             <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
               <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/40">
                 <Trash2 className="w-6 h-6" />
