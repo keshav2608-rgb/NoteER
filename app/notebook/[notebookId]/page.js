@@ -21,7 +21,8 @@ import {
   CircleDot,
   RotateCcw,
   Trash2,
-  Eraser
+  Eraser,
+  ChevronDown
 } from 'lucide-react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { useCollabSocket } from '@/lib/collaboration/useCollabSocket';
