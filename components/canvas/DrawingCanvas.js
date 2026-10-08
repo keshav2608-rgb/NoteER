@@ -200,7 +200,7 @@ export default function DrawingCanvas({
   // Helper to draw notebook page grid/dots/ruled
   function drawBackgroundPattern(ctx, width, height, type, z, px, py) {
     ctx.save();
-    ctx.fillStyle = darkMode ? '#0f172a' : '#ffffff';
+    ctx.fillStyle = darkMode ? '#222529' : '#FCFCFA';
     ctx.fillRect(0, 0, width, height);
 
     const paperType = type || 'dotted';
@@ -214,7 +214,7 @@ export default function DrawingCanvas({
     const offsetY = ((py % gridSize) + gridSize) % gridSize;
 
     if (paperType === 'dotted') {
-      ctx.fillStyle = darkMode ? '#64748b' : '#64748b';
+      ctx.fillStyle = darkMode ? '#4A5057' : '#B9BEB6';
       const dotRadius = Math.max(1.5, 1.8 * Math.min(z, 1.5));
       for (let x = offsetX; x < width; x += gridSize) {
         for (let y = offsetY; y < height; y += gridSize) {
@@ -224,7 +224,7 @@ export default function DrawingCanvas({
         }
       }
     } else if (paperType === 'grid') {
-      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8';
+      ctx.strokeStyle = darkMode ? '#3A3F45' : '#D4D8D1';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = offsetX; x < width; x += gridSize) {
@@ -241,7 +241,7 @@ export default function DrawingCanvas({
     } else if (paperType === 'ruled') {
       const lineSpacing = 32 * z;
       const offY = ((py % lineSpacing) + lineSpacing) % lineSpacing;
-      ctx.strokeStyle = darkMode ? '#475569' : '#94a3b8';
+      ctx.strokeStyle = darkMode ? '#3F5170' : '#BCD0E6';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let y = offY; y < height; y += lineSpacing) {
@@ -256,7 +256,7 @@ export default function DrawingCanvas({
       const marginScreenX = marginWorldX * z + px;
       if (marginScreenX >= 0 && marginScreenX <= width) {
         ctx.beginPath();
-        ctx.strokeStyle = darkMode ? '#f43f5e99' : '#e11d4899';
+        ctx.strokeStyle = darkMode ? '#E0707A80' : '#D9475299';
         ctx.lineWidth = 2;
         const lineMarginX = Math.floor(marginScreenX) + 0.5;
         ctx.moveTo(lineMarginX, 0);
@@ -775,17 +775,25 @@ export default function DrawingCanvas({
 
       {/* Type Mode Helper Banner */}
       {tool === 'text' && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-full shadow-lg text-xs font-medium animate-pulse">
-          <Type size={14} />
-          <span>Type Mode: Click anywhere on canvas to write a note</span>
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 pl-3 pr-1 h-10 max-w-[calc(100vw-1.5rem)] bg-ink text-paper rounded-ctl shadow-float text-[13px] font-medium"
+          style={{ top: 'calc(env(safe-area-inset-top) + 4.25rem)' }}
+          role="status"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Type size={15} className="shrink-0" />
+          <span className="truncate">
+            <span className="sm:hidden">Tap the page to add a note</span>
+            <span className="hidden sm:inline">Click anywhere on the page to add a note</span>
+          </span>
           <button
             onClick={(e) => {
               e.stopPropagation();
               setTool('pen');
             }}
-            className="ml-2 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[11px] font-semibold"
+            className="shrink-0 h-8 px-2.5 rounded-[6px] bg-paper/15 hover:bg-paper/25 text-[13px] font-semibold"
           >
-            Switch to Draw (Esc)
+            Back to pen
           </button>
         </div>
       )}

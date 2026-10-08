@@ -29,14 +29,13 @@ import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { useCollabSocket } from '@/lib/collaboration/useCollabSocket';
 import DrawingCanvas from '@/components/canvas/DrawingCanvas';
 import CanvasToolbar from '@/components/canvas/CanvasToolbar';
-import PageNavigation from '@/components/notebook/PageNavigation';
 import SyncStatusBadge from '@/components/collaboration/SyncStatusBadge';
 import PresenceBar from '@/components/collaboration/PresenceBar';
 import PairingModal from '@/components/notebook/PairingModal';
 import ShareModal from '@/components/notebook/ShareModal';
 import SnapshotModal from '@/components/notebook/SnapshotModal';
 import PaperStyleModal from '@/components/notebook/PaperStyleModal';
-import { applyTheme } from '@/components/theme/ThemeToggle';
+import { applyTheme, getInitialTheme } from '@/components/theme/ThemeToggle';
 
 export default function NotebookPage({ params }) {
   const { notebookId } = params;
@@ -97,11 +96,7 @@ export default function NotebookPage({ params }) {
   }, [loadNotebook]);
 
   if (loading || !notebook || pages.length === 0 || !currentUser) {
-    return (
-      <div className="w-full h-[100dvh] flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <NotebookLoading />;
   }
 
   return (
@@ -116,6 +111,15 @@ export default function NotebookPage({ params }) {
       setMembers={setMembers}
       onReloadNotebook={loadNotebook}
     />
+  );
+}
+
+function NotebookLoading() {
+  return (
+    <div className="w-full h-[100dvh] flex flex-col items-center justify-center gap-3 bg-desk" role="status">
+      <div className="w-7 h-7 border-[3px] border-rule border-t-ballpoint rounded-full animate-spin" />
+      <span className="font-hand text-lg text-pencil">Opening notebook…</span>
+    </div>
   );
 }
 
@@ -192,6 +196,14 @@ function NotebookEditorSession({
     darkMode,
     toggleDarkMode
   } = useNotebookStore();
+
+  // The store defaults to light; sync it with the persisted theme so the canvas
+  // paper matches the UI when this page is opened directly or refreshed.
+  useEffect(() => {
+    if (getInitialTheme() !== useNotebookStore.getState().darkMode) {
+      toggleDarkMode();
+    }
+  }, [toggleDarkMode]);
 
   const activePage = pages.find((p) => p.id === activePageId) || pages[0];
 
@@ -554,309 +566,360 @@ function NotebookEditorSession({
   };
 
   if (!currentUser) {
-    return (
-      <div className="w-full h-[100dvh] flex items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <NotebookLoading />;
   }
 
+  const activeIndex = Math.max(0, pages.findIndex((p) => p.id === activePage?.id));
+  const closeMenus = () => {
+    setShowManageMenu(false);
+    setShowMobilePageMenu(false);
+  };
+
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col bg-slate-100 dark:bg-slate-950 select-none">
-      
-      {/* Unified Floating Studio Command Island */}
-      <div className="fixed top-3 sm:top-4 inset-x-3 sm:inset-x-6 z-30 pointer-events-none flex justify-center">
-        <div className="pointer-events-auto w-full max-w-7xl p-1.5 rounded-2xl sm:rounded-full bg-slate-900/5 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] shadow-[0_16px_36px_-8px_rgba(0,0,0,0.14),0_4px_12px_-2px_rgba(0,0,0,0.06)] backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/5">
-          <header className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-[calc(1rem-2px)] sm:rounded-full bg-white/95 dark:bg-[#0c0e15]/95 backdrop-blur-xl border border-slate-200/70 dark:border-white/[0.06] flex items-center justify-between gap-2 sm:gap-4 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] select-none">
-            
-            {/* Left Zone: Dashboard Return & Notebook Title */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => router.push('/dashboard')}
-                title="Back to Dashboard"
-                className="p-1.5 sm:p-2 rounded-full text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-all hover:scale-105 active:scale-95 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
+    <div className="relative w-full h-[100dvh] overflow-hidden flex flex-col bg-desk select-none">
 
-              <div className="flex items-center gap-2 min-w-0">
-                <h1 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white truncate max-w-[100px] xs:max-w-[140px] sm:max-w-[200px] tracking-tight">
-                  {notebook?.title}
-                </h1>
-                {notebook?.visibility === 'shared' ? (
-                  <span title="Shared notebook" className="p-1 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800/60 shrink-0">
-                    <Globe className="w-3 h-3" />
-                  </span>
-                ) : (
-                  <span title="Private notebook" className="p-1 rounded-md bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700/60 shrink-0">
-                    <Lock className="w-3 h-3" />
-                  </span>
-                )}
-              </div>
-            </div>
+      {/* Top strip: notebook identity, page tabs, and actions */}
+      <header
+        className="fixed top-0 inset-x-0 z-30 bg-paper/95 backdrop-blur-sm border-b border-rule"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <div
+          className="h-14 flex items-center gap-1 sm:gap-2"
+          style={{
+            paddingLeft: 'max(0.375rem, env(safe-area-inset-left))',
+            paddingRight: 'max(0.375rem, env(safe-area-inset-right))'
+          }}
+        >
+          {/* Back + title */}
+          <button
+            type="button"
+            onClick={() => router.push('/dashboard')}
+            title="Back to notebooks"
+            aria-label="Back to notebooks"
+            className="icon-btn"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
 
-            {/* Center Zone: Natively Integrated Page Switcher Tabs */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Desktop Page Switcher Pills */}
-              <div className="hidden md:flex items-center gap-1 px-1.5 py-1 rounded-full bg-slate-100/80 dark:bg-[#12141e] border border-slate-200/70 dark:border-white/[0.06]">
-                <div className="flex items-center gap-1 max-w-[180px] lg:max-w-xs xl:max-w-md overflow-x-auto no-scrollbar">
-                  {pages.map((p) => {
-                    const isActive = p.id === activePageId;
-                    const isEditing = editingTitleId === p.id;
+          <div className="flex items-center gap-1.5 min-w-0 shrink pr-1 sm:pr-3 sm:border-r sm:border-rule sm:h-8">
+            <h1 className="font-hand font-bold text-lg sm:text-xl leading-none text-ink truncate max-w-[30vw] sm:max-w-[220px] translate-y-[2px]">
+              {notebook?.title}
+            </h1>
+            <span
+              title={notebook?.visibility === 'shared' ? 'Shared notebook' : 'Private notebook'}
+              className="text-pencil shrink-0 hidden sm:inline-flex"
+            >
+              {notebook?.visibility === 'shared' ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+            </span>
+          </div>
 
-                    return (
-                      <div
-                        key={p.id}
-                        onClick={() => handleSelectPage(p.id)}
-                        className={`group relative flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold cursor-pointer transition-all ${
-                          isActive
-                            ? 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/80 dark:border-slate-700'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-800/60'
-                        }`}
-                      >
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={tempTitle}
-                            autoFocus
-                            onChange={(e) => setTempTitle(e.target.value)}
-                            onBlur={() => handleFinishRename(p.id)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleFinishRename(p.id)}
-                            className="bg-white dark:bg-slate-800 border border-indigo-400 rounded-md px-1.5 py-0.5 text-xs text-indigo-900 dark:text-white w-20 focus:outline-none"
-                          />
-                        ) : (
-                          <span
-                            onDoubleClick={(e) => canEdit && handleStartRename(p, e)}
-                            title="Double-click to rename page"
-                            className="truncate max-w-[85px] lg:max-w-[110px]"
-                          >
-                            {p.title}
-                          </span>
-                        )}
+          {/* Desktop divider tabs */}
+          <nav aria-label="Pages" className="hidden md:flex items-end self-stretch min-w-0 flex-1 pl-1">
+            <div className="flex items-end gap-0.5 min-w-0 overflow-x-auto no-scrollbar h-full pt-2.5">
+              {pages.map((p) => {
+                const isActive = p.id === activePageId;
+                const isEditing = editingTitleId === p.id;
 
-                        {isActive && canEdit && pages.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`Delete ${p.title}?`)) handleDeletePage(p.id);
-                            }}
-                            title="Delete page"
-                            className="opacity-0 group-hover:opacity-100 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 rounded transition-opacity cursor-pointer"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={handleCreatePage}
-                    title="Add New Page"
-                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/60 rounded-full transition-all border border-dashed border-slate-300 dark:border-slate-700 shrink-0 cursor-pointer active:scale-95"
+                return (
+                  <div
+                    key={p.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={() => handleSelectPage(p.id)}
+                    onKeyDown={(e) => {
+                      if ((e.key === 'Enter' || e.key === ' ') && !isEditing && e.target === e.currentTarget) {
+                        e.preventDefault();
+                        handleSelectPage(p.id);
+                      }
+                    }}
+                    className={`group relative flex items-center gap-1 h-full px-3 rounded-t-ctl border border-b-0 text-sm cursor-pointer transition-colors shrink-0 ${
+                      isActive
+                        ? 'bg-paper border-rule text-ink font-semibold'
+                        : 'bg-paper-2 border-transparent text-pencil hover:text-ink'
+                    }`}
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span className="hidden lg:inline text-[11px]">Page</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Mobile Compact Page Switcher Dropdown */}
-              <div ref={mobilePageMenuRef} className="relative flex md:hidden items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setShowMobilePageMenu(!showMobilePageMenu)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 text-xs font-semibold text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700 cursor-pointer"
-                >
-                  <span className="truncate max-w-[70px]">{activePage?.title || 'Page'}</span>
-                  <span className="text-[10px] text-slate-400">({pages.findIndex((p) => p.id === activePage?.id) + 1}/{pages.length})</span>
-                  <ChevronDown className="w-3 h-3 text-slate-400" />
-                </button>
-
-                {canEdit && (
-                  <button
-                    type="button"
-                    onClick={handleCreatePage}
-                    title="Add New Page"
-                    className="p-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 cursor-pointer active:scale-95"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                )}
-
-                {showMobilePageMenu && (
-                  <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
-                    <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Switch Page
-                    </div>
-                    {pages.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          handleSelectPage(p.id);
-                          setShowMobilePageMenu(false);
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={tempTitle}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setTempTitle(e.target.value)}
+                        onBlur={() => handleFinishRename(p.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleFinishRename(p.id);
+                          if (e.key === 'Escape') setEditingTitleId(null);
                         }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
-                          p.id === activePageId
-                            ? 'bg-indigo-600 text-white shadow-xs'
-                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
+                        className="field h-7 w-28 px-1.5 text-sm"
+                      />
+                    ) : (
+                      <span
+                        onDoubleClick={(e) => canEdit && handleStartRename(p, e)}
+                        title={canEdit ? `${p.title} (double-click to rename)` : p.title}
+                        className={`truncate max-w-[90px] lg:max-w-[120px] ${isActive ? 'hl px-1.5' : ''}`}
                       >
-                        <span className="truncate">{p.title}</span>
-                        {p.id === activePageId && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+                        {p.title}
+                      </span>
+                    )}
 
-              {/* Sync Status Badge & Live Presence */}
-              <div className="hidden sm:flex items-center gap-2">
-                <SyncStatusBadge />
-                <div className="hidden xl:flex items-center">
-                  <PresenceBar currentUser={currentUser} />
-                </div>
-              </div>
-            </div>
-
-            {/* Right Zone: Studio CTAs, Actions & Modals */}
-            <div ref={headerMenuRef} className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              
-              {/* Button-in-button Tablet Pairing CTA */}
-              <button
-                type="button"
-                onClick={() => setShowPairingModal(true)}
-                className="group flex items-center gap-1.5 pl-2.5 sm:pl-3 pr-1 sm:pr-1.5 py-1 sm:py-1.5 rounded-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-600 text-white font-bold text-xs shadow-sm shadow-indigo-500/25 active:scale-95 transition-all shrink-0 cursor-pointer"
-                title="Pair iPad or tablet as drawing surface for this PC"
-              >
-                <span className="whitespace-nowrap hidden sm:inline text-[11px] font-semibold tracking-wide">Pair Tablet</span>
-                <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <Tablet className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
-                </div>
-              </button>
-
-              {/* Page Paper Style Trigger Button */}
-              <button
-                type="button"
-                onClick={() => setShowPaperStyleModal(true)}
-                title="Page Paper Style Dialog (Dotted, Grid, Ruled, Blank)"
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-200/60 dark:border-white/[0.06] transition-all cursor-pointer active:scale-95 shrink-0"
-              >
-                <Grid className="w-3.5 h-3.5 text-indigo-500" />
-                <span className="capitalize whitespace-nowrap hidden md:inline text-[11px]">{activePage?.background_type || 'dotted'}</span>
-              </button>
-
-              {/* Share Notebook Modal Button */}
-              <button
-                type="button"
-                onClick={() => setShowShareModal(true)}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-800/90 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-300 font-semibold text-xs border border-slate-200/60 dark:border-white/[0.06] transition-all cursor-pointer active:scale-95 shrink-0"
-                title="Share & invite collaborators"
-              >
-                <Share2 className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                <span className="whitespace-nowrap hidden lg:inline text-[11px]">Share</span>
-              </button>
-
-              {/* Version History / Snapshots Modal */}
-              <button
-                type="button"
-                onClick={() => setShowSnapshotModal(true)}
-                className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-                title="Version History & Snapshots"
-              >
-                <History className="w-4 h-4" />
-              </button>
-
-              {/* Export Canvas as PNG */}
-              <button
-                type="button"
-                onClick={handleExportPNG}
-                className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-                title="Export page as image"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-
-              {/* Dark / Light Canvas Theme Toggle */}
-              <button
-                type="button"
-                onClick={handleToggleDark}
-                className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-                title={darkMode ? 'Switch to Light Canvas' : 'Switch to Dark Canvas'}
-              >
-                {darkMode ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
-              </button>
-
-              {/* Notebook Management Actions Menu */}
-              {canEdit && (
-                <div ref={manageMenuRef} className="relative shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setShowManageMenu(!showManageMenu)}
-                    title="Notebook Options & Management"
-                    className="p-1.5 sm:p-2 rounded-full text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
-                  >
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-
-                  {showManageMenu && (
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 pointer-events-auto">
-                      <div className="px-2.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                        Notebook Management
-                      </div>
-
+                    {isActive && canEdit && pages.length > 1 && !isEditing && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowManageMenu(false);
-                          handleClearCanvas();
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (confirm(`Delete ${p.title}?`)) handleDeletePage(p.id);
                         }}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                      >
-                        <Eraser className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Clear Current Page Canvas</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowManageMenu(false);
-                          setShowClearNotebookModal(true);
-                        }}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-                      >
-                        <RotateCcw className="w-3.5 h-3.5" />
-                        <span>Clear Notebook Overall</span>
-                      </button>
-
-                      <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowManageMenu(false);
-                          handleDeleteNotebookPermanently();
-                        }}
-                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        title="Delete page"
+                        aria-label={`Delete ${p.title}`}
+                        className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-pencil hover:text-correction p-0.5 rounded transition-opacity"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span>Delete Notebook Permanently</span>
                       </button>
-                    </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleCreatePage}
+                title="Add a page"
+                aria-label="Add a page"
+                className="icon-btn icon-btn-sm self-center ml-1"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </nav>
+
+          {/* Mobile page switcher */}
+          <div ref={mobilePageMenuRef} className="relative md:hidden min-w-0">
+            <button
+              type="button"
+              onClick={() => setShowMobilePageMenu(!showMobilePageMenu)}
+              aria-expanded={showMobilePageMenu}
+              aria-label="Switch page"
+              className="flex items-center gap-1 h-10 pl-2.5 pr-1.5 rounded-ctl border border-rule bg-paper-2 text-sm font-semibold text-ink cursor-pointer min-w-0"
+            >
+              <span className="truncate max-w-[20vw]">{activePage?.title || 'Page'}</span>
+              <span className="text-xs font-normal text-pencil shrink-0">{activeIndex + 1}/{pages.length}</span>
+              <ChevronDown className="w-4 h-4 text-pencil shrink-0" />
+            </button>
+
+            {showMobilePageMenu && (
+              <div className="menu absolute top-full right-0 sm:right-auto sm:left-0 mt-2 w-64 max-w-[calc(100vw-1rem)] z-50">
+                <div className="max-h-[50vh] overflow-y-auto">
+                  {pages.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => {
+                        handleSelectPage(p.id);
+                        setShowMobilePageMenu(false);
+                      }}
+                      className="menu-item justify-between"
+                    >
+                      <span className={`truncate ${p.id === activePageId ? 'hl px-1.5 font-semibold' : ''}`}>{p.title}</span>
+                      {p.id === activePageId && <Check className="w-4 h-4 text-pencil shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+                {canEdit && (
+                  <>
+                    <div className="my-1 border-t border-rule" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMobilePageMenu(false);
+                        handleCreatePage();
+                      }}
+                      className="menu-item"
+                    >
+                      <Plus className="w-4 h-4 text-pencil" />
+                      <span>Add a page</span>
+                    </button>
+                    {pages.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMobilePageMenu(false);
+                          if (activePage && confirm(`Delete ${activePage.title}?`)) handleDeletePage(activePage.id);
+                        }}
+                        className="menu-item text-correction"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete this page</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 md:hidden" />
+
+          {/* Status */}
+          <div className="flex items-center gap-2 shrink-0 px-1">
+            <SyncStatusBadge />
+            <div className="hidden xl:flex">
+              <PresenceBar currentUser={currentUser} />
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowPairingModal(true)}
+              className="btn btn-sm btn-primary hidden md:inline-flex"
+              title="Use a tablet as the drawing pad for this screen"
+            >
+              <Tablet className="w-4 h-4" />
+              <span className="hidden lg:inline">Pair tablet</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="btn btn-sm btn-outline hidden md:inline-flex"
+              title="Share and invite people"
+            >
+              <Share2 className="w-4 h-4" />
+              <span className="hidden lg:inline">Share</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowPaperStyleModal(true)}
+              title={`Paper style: ${activePage?.background_type || 'dotted'}`}
+              aria-label="Paper style"
+              className="icon-btn hidden lg:inline-flex"
+            >
+              <Grid className="w-[18px] h-[18px]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSnapshotModal(true)}
+              className="icon-btn hidden lg:inline-flex"
+              title="Version history"
+              aria-label="Version history"
+            >
+              <History className="w-[18px] h-[18px]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportPNG}
+              className="icon-btn hidden lg:inline-flex"
+              title="Download page as PNG"
+              aria-label="Download page as PNG"
+            >
+              <Download className="w-[18px] h-[18px]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleToggleDark}
+              className="icon-btn hidden lg:inline-flex"
+              title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+              aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'}
+            >
+              {darkMode ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+            </button>
+
+            {/* Overflow menu: actions hidden at this width, plus notebook management */}
+            <div ref={manageMenuRef} className={`relative shrink-0 ${canEdit ? '' : 'lg:hidden'}`}>
+              <button
+                type="button"
+                onClick={() => setShowManageMenu(!showManageMenu)}
+                title="More"
+                aria-label="More actions"
+                aria-expanded={showManageMenu}
+                className="icon-btn"
+              >
+                <MoreVertical className="w-5 h-5" />
+              </button>
+
+              {showManageMenu && (
+                <div className="menu absolute top-full right-0 mt-2 w-64 max-w-[calc(100vw-1rem)] z-50">
+                  <div className="lg:hidden">
+                    <button type="button" onClick={() => { closeMenus(); setShowPairingModal(true); }} className="menu-item md:hidden">
+                      <Tablet className="w-4 h-4 text-pencil" />
+                      <span>Pair tablet</span>
+                    </button>
+                    <button type="button" onClick={() => { closeMenus(); setShowShareModal(true); }} className="menu-item md:hidden">
+                      <Share2 className="w-4 h-4 text-pencil" />
+                      <span>Share</span>
+                    </button>
+                    <button type="button" onClick={() => { closeMenus(); setShowPaperStyleModal(true); }} className="menu-item">
+                      <Grid className="w-4 h-4 text-pencil" />
+                      <span className="flex-1">Paper style</span>
+                      <span className="text-xs text-pencil capitalize">{activePage?.background_type || 'dotted'}</span>
+                    </button>
+                    <button type="button" onClick={() => { closeMenus(); setShowSnapshotModal(true); }} className="menu-item">
+                      <History className="w-4 h-4 text-pencil" />
+                      <span>Version history</span>
+                    </button>
+                    <button type="button" onClick={() => { closeMenus(); handleExportPNG(); }} className="menu-item">
+                      <Download className="w-4 h-4 text-pencil" />
+                      <span>Download page as PNG</span>
+                    </button>
+                    <button type="button" onClick={() => { closeMenus(); handleToggleDark(); }} className="menu-item">
+                      {darkMode ? <Sun className="w-4 h-4 text-pencil" /> : <Moon className="w-4 h-4 text-pencil" />}
+                      <span>{darkMode ? 'Light theme' : 'Dark theme'}</span>
+                    </button>
+                    {canEdit && <div className="my-1 border-t border-rule" />}
+                  </div>
+
+                  {canEdit && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenus();
+                          handleClearCanvas();
+                        }}
+                        className="menu-item"
+                      >
+                        <Eraser className="w-4 h-4 text-pencil" />
+                        <span>Clear this page</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenus();
+                          setShowClearNotebookModal(true);
+                        }}
+                        className="menu-item"
+                      >
+                        <RotateCcw className="w-4 h-4 text-pencil" />
+                        <span>Clear whole notebook…</span>
+                      </button>
+                      <div className="my-1 border-t border-rule" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMenus();
+                          handleDeleteNotebookPermanently();
+                        }}
+                        className="menu-item text-correction"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete notebook</span>
+                      </button>
+                    </>
                   )}
                 </div>
               )}
             </div>
-
-          </header>
+          </div>
         </div>
-      </div>
+      </header>
 
       {/* Full-Bleed Edge-to-Edge Drawing Canvas */}
       <main className="absolute inset-0 w-full h-full overflow-hidden">
@@ -927,46 +990,32 @@ function NotebookEditorSession({
         onRestoreSnapshot={handleRestoreSnapshot}
       />
 
-      {/* Clear Notebook Overall In-App Confirmation Modal */}
+      {/* Clear notebook confirmation */}
       {showClearNotebookModal && (
-        <div
-          onClick={() => setShowClearNotebookModal(false)}
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in select-none"
-        >
+        <div onClick={() => setShowClearNotebookModal(false)} className="scrim">
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-notebook-title"
             onClick={(e) => e.stopPropagation()}
-            className="bg-white/98 dark:bg-slate-900/98 border border-slate-200/90 dark:border-slate-800 rounded-[2rem] p-6 shadow-2xl ring-1 ring-black/5 dark:ring-white/10 max-w-md w-full flex flex-col gap-4 text-slate-900 dark:text-slate-100 animate-in zoom-in-95 duration-200"
+            className="index-card sm:max-w-md"
           >
-            <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400">
-              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900/40">
-                <Trash2 className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold">Clear Entire Notebook?</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">This action cannot be undone</p>
-              </div>
+            <div className="index-card-head">
+              <h3 id="clear-notebook-title" className="index-card-title">Clear the whole notebook?</h3>
             </div>
-
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              All drawings, shapes, text notes, and additional pages across the entire notebook will be permanently wiped, resetting it to a single clean Page 1.
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowClearNotebookModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleClearNotebookOverall}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-colors flex items-center gap-1.5"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>Yes, Clear Everything</span>
-              </button>
+            <div className="index-card-body flex flex-col gap-5" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+              <p className="text-sm text-pencil leading-relaxed">
+                Every drawing, shape, and note on every page will be erased and extra pages removed, leaving one blank Page 1. This can&apos;t be undone.
+              </p>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+                <button type="button" onClick={() => setShowClearNotebookModal(false)} className="btn btn-outline">
+                  Keep notebook
+                </button>
+                <button type="button" onClick={handleClearNotebookOverall} className="btn btn-danger">
+                  <Trash2 className="w-4 h-4" />
+                  <span>Clear everything</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

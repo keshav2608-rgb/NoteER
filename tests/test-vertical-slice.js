@@ -504,6 +504,10 @@ async function runTests() {
     assert.strictEqual(remainingPages[0].background_type, 'blank', 'Reset page background is blank');
     assert.strictEqual(remainingSnaps.length, 0, 'All snapshots wiped');
     assert.strictEqual(remainingCollab.length, 0, 'All collab updates wiped');
+
+    // Clean up so repeated test runs don't leave notebooks in the dev database
+    await db.run('DELETE FROM pages WHERE notebook_id = ?', [testNbId]);
+    await db.run('DELETE FROM notebooks WHERE id = ?', [testNbId]);
   });
 
   await testAsync('Permanent notebook deletion completely removes notebook and all cascading records from database', async () => {

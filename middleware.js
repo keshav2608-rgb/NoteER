@@ -124,8 +124,9 @@ export function middleware(request) {
     );
   }
 
-  // 2. Rate Limiting on sensitive routes
-  if (pathname.startsWith('/api/auth/')) {
+  // 2. Rate Limiting on sensitive routes. Only credential-exchanging endpoints
+  // are limited; /api/auth/me and /api/auth/config run on every page load.
+  if (pathname === '/api/auth/demo' || pathname === '/api/auth/google') {
     const { allowed, resetIn } = checkRateLimit(`auth_${ip}`, 30, 60000);
     if (!allowed) {
       return NextResponse.json(

@@ -4,8 +4,9 @@ import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { worldToScreen } from '@/lib/drawing/engine';
 import { MousePointer2, Tablet } from 'lucide-react';
 
+// Ink colours for other people's cursors (fountain-pen inks, readable on both papers)
 const USER_COLORS = [
-  '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'
+  '#C2412D', '#2340C8', '#2F7A52', '#B07A12', '#6B4E9B', '#B03A6E', '#1F7A8C'
 ];
 
 export default function LiveCursorOverlay({ currentClientId }) {
@@ -32,7 +33,7 @@ export default function LiveCursorOverlay({ currentClientId }) {
             >
               {peer.isTablet ? (
                 <div 
-                  className="p-1 rounded-full shadow-md text-white flex items-center justify-center"
+                  className="p-1 rounded-full shadow-lift text-white flex items-center justify-center"
                   style={{ backgroundColor: color }}
                 >
                   <Tablet className="w-3.5 h-3.5" />
@@ -45,10 +46,10 @@ export default function LiveCursorOverlay({ currentClientId }) {
               )}
 
               <span
-                className="text-[10px] font-semibold text-white px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap"
+                className="text-[11px] font-semibold text-white px-1.5 py-0.5 rounded-[4px] whitespace-nowrap translate-y-3"
                 style={{ backgroundColor: color }}
               >
-                {name} {peer.isTablet ? '(Tablet)' : ''}
+                {peer.isTablet && !/tablet/i.test(name) ? `${name} (tablet)` : name}
               </span>
             </div>
           );

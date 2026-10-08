@@ -1,54 +1,41 @@
 'use client';
 import React from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
-import { CheckCircle2, RefreshCw, WifiOff, AlertCircle } from 'lucide-react';
+import { Check, RefreshCw, WifiOff, AlertCircle, Tablet } from 'lucide-react';
+
+const STATUS = {
+  saved: { icon: Check, text: 'Saved', tone: 'text-ok' },
+  syncing: { icon: RefreshCw, text: 'Saving…', tone: 'text-ballpoint', spin: true },
+  reconnecting: { icon: AlertCircle, text: 'Reconnecting…', tone: 'text-pencil', pulse: true },
+  offline: { icon: WifiOff, text: 'Offline, saved on this device', short: 'Offline', tone: 'text-correction' }
+};
 
 export default function SyncStatusBadge() {
   const { syncStatus, tabletConnected } = useNotebookStore();
-
-  const getStatusConfig = () => {
-    switch (syncStatus) {
-      case 'saved':
-        return {
-          icon: <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />,
-          text: 'Saved',
-          bg: 'bg-emerald-50/80 text-emerald-700 border-emerald-200/60'
-        };
-      case 'syncing':
-        return {
-          icon: <RefreshCw className="w-3.5 h-3.5 text-blue-500 animate-spin" />,
-          text: 'Syncing...',
-          bg: 'bg-blue-50/80 text-blue-700 border-blue-200/60'
-        };
-      case 'reconnecting':
-        return {
-          icon: <AlertCircle className="w-3.5 h-3.5 text-amber-500 animate-pulse" />,
-          text: 'Reconnecting...',
-          bg: 'bg-amber-50/80 text-amber-700 border-amber-200/60'
-        };
-      case 'offline':
-      default:
-        return {
-          icon: <WifiOff className="w-3.5 h-3.5 text-rose-500" />,
-          text: 'Offline — saved locally',
-          bg: 'bg-rose-50/80 text-rose-700 border-rose-200/60'
-        };
-    }
-  };
-
-  const config = getStatusConfig();
+  const config = STATUS[syncStatus] || STATUS.offline;
+  const Icon = config.icon;
 
   return (
-    <div className="flex items-center gap-2">
-      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-sm shadow-xs ${config.bg}`}>
-        {config.icon}
-        <span>{config.text}</span>
+    <div className="flex items-center gap-2" role="status" aria-live="polite">
+      <div
+        title={config.text}
+        className={`flex items-center gap-1.5 text-[13px] font-medium ${config.tone} ${config.pulse ? 'animate-pulse-subtle' : ''}`}
+      >
+        <Icon className={`w-4 h-4 shrink-0 ${config.spin ? 'animate-spin' : ''}`} aria-hidden="true" />
+        <span className="hidden sm:inline whitespace-nowrap">
+          <span className="hidden xl:inline">{config.text}</span>
+          <span className="xl:hidden">{config.short || config.text}</span>
+        </span>
+        <span className="sr-only sm:hidden">{config.text}</span>
       </div>
 
       {tabletConnected && (
-        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50/90 text-indigo-700 border border-indigo-200/70 shadow-xs animate-pulse-subtle">
-          <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-          <span>Tablet Active</span>
+        <div
+          title="A tablet is drawing on this page"
+          className="hidden sm:flex items-center gap-1.5 h-7 px-2 rounded-ctl hl text-[13px] font-semibold"
+        >
+          <Tablet className="w-3.5 h-3.5" aria-hidden="true" />
+          <span className="hidden lg:inline">Tablet live</span>
         </div>
       )}
     </div>

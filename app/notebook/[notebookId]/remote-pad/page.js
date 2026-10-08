@@ -48,7 +48,7 @@ export default function RemotePadPage({ params }) {
                 sessionStorage.setItem(`stylus_token_${notebookId}`, token);
               }
             } else {
-              setErrorMessage('The QR code or pairing PIN has expired or is invalid. Please generate a new code on your PC.');
+              setErrorMessage("This pairing code has expired or isn't valid. Open the notebook on your computer and make a new one.");
               setLoading(false);
               return;
             }
@@ -73,7 +73,7 @@ export default function RemotePadPage({ params }) {
           const canvasRes = await fetch(`/api/pairing/canvas-info?notebookId=${notebookId}${pairQuery}`, { headers });
           
           if (!canvasRes.ok) {
-            setErrorMessage('Unable to connect to notebook canvas. Please re-scan the QR code.');
+            setErrorMessage("Couldn't reach the notebook. Scan the QR code on your computer again.");
             setLoading(false);
             return;
           }
@@ -93,13 +93,13 @@ export default function RemotePadPage({ params }) {
           setPages(data.pages || []);
           setIsCanvasOnly(false);
         } else {
-          setErrorMessage('No pairing code provided. Please scan the QR code from your Desktop PC to use this tablet as a drawing pad.');
+          setErrorMessage('Scan the QR code shown in the notebook on your computer to use this device as a drawing pad.');
           setLoading(false);
           return;
         }
       } catch (err) {
         console.error('Tablet session init error:', err);
-        setErrorMessage('Failed to initialize drawing pad. Please check network connection and try again.');
+        setErrorMessage("The pad couldn't connect. Check that this device is on the same network, then reload.");
       } finally {
         setLoading(false);
       }
@@ -117,53 +117,35 @@ export default function RemotePadPage({ params }) {
 
   if (disconnected) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 mb-4 shadow-xl">
-          <svg className="w-8 h-8 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </div>
-        <h2 className="text-lg font-bold text-slate-100">Drawing Pad Disconnected</h2>
-        <p className="text-sm text-slate-400 max-w-sm mt-2">
-          This device was disconnected from the session. For security reasons, no account or user data was shared with this device.
-        </p>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="mt-6 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md transition-colors"
-        >
-          Reconnect
-        </button>
-      </div>
+      <PadMessage
+        title="Pad disconnected"
+        body="This device has stopped drawing into the notebook. Nothing from the account was stored here."
+        action={
+          <button type="button" onClick={() => window.location.reload()} className="btn btn-primary h-11 px-5">
+            Reconnect
+          </button>
+        }
+      />
     );
   }
 
   if (errorMessage) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-rose-950/40 border border-rose-800/60 flex items-center justify-center text-rose-400 mb-4 shadow-xl">
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-        </div>
-        <h2 className="text-lg font-bold text-slate-100">Access Restricted</h2>
-        <p className="text-sm text-slate-400 max-w-sm mt-2">{errorMessage}</p>
-      </div>
+      <PadMessage
+        tone="error"
+        title="Can't open the drawing pad"
+        body={errorMessage}
+      />
     );
   }
 
   if (loading || !notebook || pages.length === 0) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-white gap-4">
-        <div className="relative">
-          <div className="w-12 h-12 border-3 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-pulse"></span>
-          </div>
-        </div>
+      <div className="min-h-[100dvh] w-full flex flex-col items-center justify-center gap-4 bg-desk text-ink p-6" role="status">
+        <div className="w-10 h-10 rounded-full border-[3px] border-rule border-t-ballpoint animate-spin" />
         <div className="text-center">
-          <h2 className="text-sm font-semibold text-slate-200">Connecting Drawing Pad</h2>
-          <p className="text-xs text-slate-400 mt-1 font-mono">Verifying secure scoped canvas session...</p>
+          <p className="text-base font-semibold">Connecting the pad</p>
+          <p className="text-sm text-pencil mt-1">Checking the pairing code with your computer</p>
         </div>
       </div>
     );
@@ -224,5 +206,24 @@ function RemotePadSession({
       backgroundType={activePage?.background_type || 'dotted'}
       onExit={isCanvasOnly ? onDisconnect : () => router.push(`/notebook/${notebookId}`)}
     />
+  );
+}
+
+function PadMessage({ title, body, action, tone }) {
+  return (
+    <div
+      className="min-h-[100dvh] w-full flex items-center justify-center bg-desk text-ink"
+      style={{ padding: 'max(1.5rem, env(safe-area-inset-top)) 1rem max(1.5rem, env(safe-area-inset-bottom))' }}
+    >
+      <div className="index-card rounded-panel max-w-sm">
+        <div className="index-card-head">
+          <h1 className={`font-hand text-2xl leading-tight ${tone === 'error' ? 'text-correction' : 'text-ink'}`}>{title}</h1>
+        </div>
+        <div className="index-card-body space-y-5">
+          <p className="text-sm text-pencil leading-relaxed">{body}</p>
+          {action}
+        </div>
+      </div>
+    </div>
   );
 }

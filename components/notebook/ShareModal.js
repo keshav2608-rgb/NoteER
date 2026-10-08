@@ -1,12 +1,9 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Users,
   UserPlus,
-  Shield,
   Trash2,
   X,
-  Check,
   Mail,
   Lock,
   Globe
@@ -28,15 +25,20 @@ export default function ShareModal({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Escape key handler
+  // Escape closes. The listener must stay attached for the whole time the modal
+  // is open: other window keydown handlers (e.g. the canvas tool shortcuts)
+  // trigger synchronous store re-renders mid-dispatch, and re-subscribing on
+  // every new inline onClose would drop this listener before it runs.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -53,181 +55,151 @@ export default function ShareModal({
     try {
       await onAddMember(email.trim(), role);
       setEmail('');
-      setSuccess(`Invited ${email} as ${role}`);
+      setSuccess(`Invited ${email.trim()}`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError(err.message || 'Failed to add collaborator');
+      setError(err.message || 'Couldn’t send the invite. Check the email address and try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const isShared = notebook?.visibility === 'shared';
+  const roleLabel = { owner: 'Owner', editor: 'Can edit', commenter: 'Can comment', viewer: 'Can view' };
+
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in select-none"
-    >
-      {/* Outer Shell */}
+    <div onClick={onClose} className="scrim select-none">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="max-w-lg w-full p-1.5 sm:p-2.5 rounded-[2.25rem] bg-slate-900/5 dark:bg-white/[0.04] border border-slate-200/80 dark:border-white/[0.08] shadow-2xl backdrop-blur-2xl ring-1 ring-black/5 dark:ring-white/5 animate-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-title"
+        className="index-card sm:max-w-lg"
       >
-        {/* Inner Core */}
-        <div className="rounded-[1.85rem] bg-white dark:bg-[#0c0e15] border border-slate-200/70 dark:border-white/[0.06] p-6 text-slate-900 dark:text-slate-100 flex flex-col gap-5 shadow-sm">
-          
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs">
-                <Users className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                  COLLABORATION
-                </div>
-                <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
-                  Share Notebook
-                </h2>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium truncate max-w-[240px]">
-                  {notebook?.title}
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
-              title="Close (Esc)"
-            >
-              <X className="w-4 h-4" />
-            </button>
+        <div className="index-card-head">
+          <div className="min-w-0">
+            <h2 id="share-title" className="index-card-title">Share notebook</h2>
+            <p className="text-sm text-pencil mt-0.5 truncate">{notebook?.title}</p>
           </div>
+          <button type="button" onClick={onClose} className="icon-btn icon-btn-sm -mr-2" title="Close" aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
 
-          {/* Notebook Visibility Toggle (Private / Shared) */}
+        <div className="index-card-body flex flex-col gap-6">
+          {/* Visibility */}
           {isOwner && (
-            <div className="flex items-center justify-between p-3.5 bg-slate-50/80 dark:bg-[#11131c] rounded-2xl border border-slate-200/80 dark:border-white/[0.06]">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 shrink-0">
-                  {notebook?.visibility === 'shared' ? (
-                    <Globe className="w-4 h-4 text-emerald-500" />
-                  ) : (
-                    <Lock className="w-4 h-4 text-slate-400" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                    {notebook?.visibility === 'shared' ? 'Shared with Collaborators' : 'Private Notebook'}
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                {isShared ? (
+                  <Globe className="w-5 h-5 text-ballpoint shrink-0 mt-0.5" />
+                ) : (
+                  <Lock className="w-5 h-5 text-pencil shrink-0 mt-0.5" />
+                )}
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-ink">
+                    {isShared ? 'Shared with members' : 'Private'}
                   </div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                    {notebook?.visibility === 'shared'
-                      ? 'Invited members can view or draw live'
-                      : 'Only you have access to this notebook'}
+                  <div className="text-sm text-pencil">
+                    {isShared ? 'People you invite can open it.' : 'Only you can open it.'}
                   </div>
                 </div>
               </div>
-
               <button
                 type="button"
-                onClick={() => onUpdateVisibility(notebook.visibility === 'shared' ? 'private' : 'shared')}
-                className="text-xs font-bold px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 text-slate-900 dark:text-slate-100 transition-colors shadow-2xs cursor-pointer active:scale-95"
+                onClick={() => onUpdateVisibility(isShared ? 'private' : 'shared')}
+                className="btn btn-outline btn-sm shrink-0"
               >
-                Make {notebook?.visibility === 'shared' ? 'Private' : 'Shared'}
+                {isShared ? 'Make private' : 'Share it'}
               </button>
             </div>
           )}
 
-          {/* Invite Form */}
+          {/* Invite */}
           {isOwner && (
             <form onSubmit={handleInvite} className="flex flex-col gap-2">
-              <div className="text-xs font-bold text-slate-700 dark:text-slate-300">Invite new collaborator</div>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <label htmlFor="share-email" className="label mb-0">Invite by email</label>
+              <div className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
+                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-pencil pointer-events-none" />
                   <input
+                    id="share-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="collaborator@email.com"
-                    className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#11131c] text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    placeholder="name@example.com"
+                    className="field pl-9"
                     required
                   />
                 </div>
-
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="py-2 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-[#11131c] text-slate-900 dark:text-white font-medium focus:outline-none cursor-pointer"
-                >
-                  <option value="editor">Editor (Draw & Edit)</option>
-                  <option value="commenter">Commenter</option>
-                  <option value="viewer">Viewer (Read-only)</option>
-                </select>
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm shadow-indigo-500/20 disabled:opacity-50 cursor-pointer active:scale-95"
-                >
-                  {submitting ? 'Inviting...' : 'Invite'}
-                </button>
+                <div className="flex gap-2">
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    aria-label="Access level"
+                    className="field flex-1 sm:w-auto cursor-pointer"
+                  >
+                    <option value="editor">Can edit</option>
+                    <option value="commenter">Can comment</option>
+                    <option value="viewer">Can view</option>
+                  </select>
+                  <button type="submit" disabled={submitting} className="btn btn-primary">
+                    <UserPlus className="w-4 h-4" />
+                    {submitting ? 'Inviting…' : 'Invite'}
+                  </button>
+                </div>
               </div>
-
-              {error && <div className="text-xs text-rose-500 dark:text-rose-400 font-semibold">{error}</div>}
-              {success && <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">{success}</div>}
+              {error && <div role="alert" className="text-sm text-correction">{error}</div>}
+              {success && <div role="status" className="text-sm text-ok">{success}</div>}
             </form>
           )}
 
-          {/* Members List */}
-          <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300">
-              <span>Members with access</span>
-              <span className="text-[10px] font-mono font-normal text-slate-400">({members.length})</span>
+          {/* Members */}
+          <div className="flex flex-col gap-1">
+            <div className="flex items-baseline justify-between pb-2 border-b border-rule">
+              <span className="text-sm font-semibold text-ink">People with access</span>
+              <span className="text-sm text-pencil tabular-nums">{members.length}</span>
             </div>
-            <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+            <ul className="flex flex-col max-h-56 overflow-y-auto -mx-2">
               {members.map((m) => (
-                <div
+                <li
                   key={m.member_id || m.id || m.user_id}
-                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-[#11131c] transition-colors border border-transparent hover:border-slate-100 dark:hover:border-white/[0.04]"
+                  className="flex items-center justify-between gap-3 px-2 py-2 rounded-ctl hover:bg-paper-2 transition-colors"
                 >
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-3 min-w-0">
                     {m.avatar_url ? (
-                      <img src={m.avatar_url} alt={m.name} className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700" />
+                      <img src={m.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover border border-rule shrink-0" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shadow-2xs">
+                      <div className="w-8 h-8 rounded-full bg-ink text-paper text-sm font-bold flex items-center justify-center shrink-0">
                         {m.name?.charAt(0) || 'U'}
                       </div>
                     )}
-                    <div>
-                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{m.name}</div>
-                      <div className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{m.email}</div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-ink truncate">{m.name}</div>
+                      <div className="text-xs text-pencil truncate">{m.email}</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase tracking-wider ${
-                      m.role === 'owner' ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200/60' :
-                      m.role === 'editor' ? 'bg-indigo-100 dark:bg-indigo-950/60 text-indigo-800 dark:text-indigo-300 border border-indigo-200/60' :
-                      'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                    }`}>
-                      {m.role}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={m.role === 'owner' ? 'chip hl border-transparent' : 'chip'}>
+                      {roleLabel[m.role] || m.role}
                     </span>
-
                     {isOwner && m.role !== 'owner' && (
                       <button
                         type="button"
                         onClick={() => onRemoveMember(m.user_id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                        title="Remove member"
+                        className="icon-btn icon-btn-sm hover:text-correction"
+                        title={`Remove ${m.name}`}
+                        aria-label={`Remove ${m.name}`}
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
-
         </div>
       </div>
     </div>

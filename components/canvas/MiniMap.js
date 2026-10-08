@@ -3,6 +3,14 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useNotebookStore } from '@/lib/store/useNotebookStore';
 import { Map, Crosshair, ChevronDown, ChevronUp, Tablet, Laptop, Users } from 'lucide-react';
 
+// Mirror the main canvas's ink adaptation so dark ink stays visible on dark paper
+function adaptInk(color, darkMode) {
+  if (!color) return color;
+  if (darkMode && (color === '#0f172a' || color === '#1e293b' || color === '#000000')) return '#f8fafc';
+  if (!darkMode && (color === '#f8fafc' || color === '#ffffff')) return '#0f172a';
+  return color;
+}
+
 export default function MiniMap({
   documentState,
   containerRef,
@@ -115,7 +123,7 @@ export default function MiniMap({
     ctx.clearRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
     // Background
-    ctx.fillStyle = darkMode ? '#0f172a' : '#f8fafc';
+    ctx.fillStyle = darkMode ? '#222529' : '#FCFCFA';
     ctx.fillRect(0, 0, MAP_WIDTH, MAP_HEIGHT);
 
     // Render strokes in miniature
@@ -130,7 +138,7 @@ export default function MiniMap({
           const m = worldToMap(pts[i].x, pts[i].y);
           ctx.lineTo(m.x, m.y);
         }
-        ctx.strokeStyle = stroke.color || (darkMode ? '#94a3b8' : '#475569');
+        ctx.strokeStyle = adaptInk(stroke.color, darkMode) || (darkMode ? '#E8E9E4' : '#23262A');
         ctx.lineWidth = Math.max(1, (stroke.width || 4) * scale);
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -143,7 +151,7 @@ export default function MiniMap({
       for (const shape of documentState.shapes) {
         const p1 = worldToMap(shape.startX, shape.startY);
         const p2 = worldToMap(shape.endX, shape.endY);
-        ctx.strokeStyle = shape.color || (darkMode ? '#38bdf8' : '#2563eb');
+        ctx.strokeStyle = adaptInk(shape.color, darkMode) || (darkMode ? '#92A5FF' : '#2340C8');
         ctx.lineWidth = Math.max(1, (shape.width || 2) * scale);
 
         if (shape.type === 'rect' || shape.type === 'rectangle') {
@@ -173,7 +181,7 @@ export default function MiniMap({
       for (const tb of documentState.textBlocks) {
         const tp = worldToMap(tb.x, tb.y);
         const tw = Math.max((tb.width || 200) * scale, 6);
-        ctx.fillStyle = darkMode ? 'rgba(148, 163, 184, 0.45)' : 'rgba(100, 116, 139, 0.45)';
+        ctx.fillStyle = darkMode ? 'rgba(226, 211, 72, 0.6)' : 'rgba(214, 196, 40, 0.75)';
         ctx.fillRect(tp.x, tp.y, tw, Math.max(4 * scale, 3));
       }
     }
@@ -185,9 +193,9 @@ export default function MiniMap({
     const vpH = Math.max(vpBottomRight.y - vpTopLeft.y, 6);
 
     ctx.save();
-    ctx.fillStyle = darkMode ? 'rgba(99, 102, 241, 0.15)' : 'rgba(99, 102, 241, 0.2)';
+    ctx.fillStyle = darkMode ? 'rgba(146, 165, 255, 0.14)' : 'rgba(35, 64, 200, 0.1)';
     ctx.fillRect(vpTopLeft.x, vpTopLeft.y, vpW, vpH);
-    ctx.strokeStyle = darkMode ? '#818cf8' : '#4f46e5';
+    ctx.strokeStyle = darkMode ? '#92A5FF' : '#2340C8';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(vpTopLeft.x, vpTopLeft.y, vpW, vpH);
     ctx.restore();
@@ -198,13 +206,13 @@ export default function MiniMap({
         if (p.cursor && typeof p.cursor.x === 'number' && typeof p.cursor.y === 'number') {
           const cp = worldToMap(p.cursor.x, p.cursor.y);
           const isTabletDevice = p.isTablet;
-          const peerColor = isTabletDevice ? '#10b981' : '#3b82f6';
+          const peerColor = isTabletDevice ? '#2F7A52' : '#C2412D';
 
           ctx.save();
           // Pulsing halo
           ctx.beginPath();
           ctx.arc(cp.x, cp.y, 6, 0, Math.PI * 2);
-          ctx.fillStyle = isTabletDevice ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)';
+          ctx.fillStyle = isTabletDevice ? 'rgba(47, 122, 82, 0.3)' : 'rgba(194, 65, 45, 0.3)';
           ctx.fill();
 
           // Dot marker
@@ -217,9 +225,9 @@ export default function MiniMap({
           ctx.stroke();
 
           // Device Tag
-          ctx.fillStyle = darkMode ? '#ffffff' : '#0f172a';
+          ctx.fillStyle = darkMode ? '#E8E9E4' : '#23262A';
           ctx.font = 'bold 8px system-ui, sans-serif';
-          ctx.fillText(isTabletDevice ? '📱 Tablet' : (p.user?.name || '💻 Peer'), cp.x + 5, cp.y + 3);
+          ctx.fillText(isTabletDevice ? 'Tablet' : (p.user?.name?.split(' ')[0] || 'Guest'), cp.x + 5, cp.y + 3);
           ctx.restore();
         }
       }
@@ -280,40 +288,25 @@ export default function MiniMap({
   return (
     <div
       onPointerDown={(e) => e.stopPropagation()}
-      className={`fixed ${isRemotePad ? 'bottom-24 right-3' : 'bottom-20 right-4'} z-20 flex flex-col items-end gap-1.5 select-none`}
+      className={`fixed ${isRemotePad ? 'bottom-24 right-3' : 'right-3 sm:right-5'} z-20 flex flex-col items-end gap-1.5 select-none`}
+      style={isRemotePad ? undefined : {
+        bottom: 'calc(var(--tray-h, 72px) + env(safe-area-inset-bottom) + 18px)',
+        right: 'max(0.75rem, env(safe-area-inset-right))'
+      }}
     >
-      {/* Floating Toggle Button */}
-      <button
-        type="button"
-        onClick={() => setIsExpanded(!isExpanded)}
-        title={isExpanded ? 'Collapse Minimap' : 'Show Minimap'}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold shadow-lg border border-slate-200/80 dark:border-slate-800 backdrop-blur-md transition-all active:scale-95"
-      >
-        <Map className="w-3.5 h-3.5 text-indigo-500" />
-        <span className="hidden sm:inline">Minimap</span>
-        {(tabletConnected || activeConnectedCount > 0) && (
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Connected device active" />
-        )}
-        {isExpanded ? <ChevronDown className="w-3 h-3 opacity-60" /> : <ChevronUp className="w-3 h-3 opacity-60" />}
-      </button>
-
-      {/* Expanded Minimap Viewport Card */}
+      {/* Expanded map */}
       {isExpanded && (
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200/90 dark:border-slate-800 p-2 animate-in fade-in zoom-in-95 flex flex-col gap-1.5">
-          {/* Header indicator showing connected devices */}
-          <div className="flex items-center justify-between px-1 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
-            <span className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-indigo-500" />
-              {tabletConnected ? 'PC + Tablet Paired' : 'Canvas Map'}
-            </span>
+        <div className="panel p-2 flex flex-col gap-1.5 order-first" style={{ animation: 'card-in 160ms ease-out' }}>
+          <div className="flex items-center justify-between px-1 text-xs text-pencil">
+            <span>{tabletConnected ? 'Computer and tablet' : 'Page overview'}</span>
             {tabletConnected && (
-              <span className="text-emerald-500 font-semibold flex items-center gap-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Live
+              <span className="flex items-center gap-1 text-ok font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-ok"></span> Live
               </span>
             )}
           </div>
 
-          <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 cursor-crosshair">
+          <div className="relative rounded-[6px] overflow-hidden border border-rule cursor-crosshair">
             <canvas
               ref={canvasRef}
               width={MAP_WIDTH}
@@ -322,24 +315,41 @@ export default function MiniMap({
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
               onPointerLeave={handlePointerUp}
-              className="block"
+              className="block max-w-[calc(100vw-3rem)]"
               style={{ width: `${MAP_WIDTH}px`, height: `${MAP_HEIGHT}px` }}
             />
           </div>
 
-          <div className="flex items-center justify-between px-1 text-[10px] text-slate-500 dark:text-slate-400">
-            <span>Click / drag to pan</span>
+          <div className="flex items-center justify-between px-1 text-xs text-pencil">
+            <span>Drag to move around</span>
             <button
               type="button"
               onClick={resetView}
-              title="Reset View to 100%"
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-0.5 font-medium transition-colors"
+              title="Reset to 100%"
+              className="flex items-center gap-1 h-7 px-1.5 -mr-1 rounded-[6px] font-semibold text-ink hover:bg-paper-2 transition-colors"
             >
-              <Crosshair className="w-2.5 h-2.5" /> Center
+              <Crosshair className="w-3.5 h-3.5" /> Recenter
             </button>
           </div>
         </div>
       )}
+
+      {/* Toggle */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        title={isExpanded ? 'Hide map' : 'Show map'}
+        aria-label={isExpanded ? 'Hide map' : 'Show map'}
+        aria-expanded={isExpanded}
+        className="flex items-center gap-1.5 h-10 px-3 rounded-ctl bg-paper text-ink text-[13px] font-semibold border border-rule shadow-lift hover:bg-paper-2 transition-colors"
+      >
+        <Map className="w-4 h-4 text-pencil" />
+        <span className="hidden sm:inline">Map</span>
+        {(tabletConnected || activeConnectedCount > 0) && (
+          <span className="w-2 h-2 rounded-full bg-ok" title="Someone else is on this page" />
+        )}
+        {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-pencil" /> : <ChevronUp className="w-3.5 h-3.5 text-pencil" />}
+      </button>
     </div>
   );
 }

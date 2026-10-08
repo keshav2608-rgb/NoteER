@@ -1,14 +1,15 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import {
-  History,
-  Plus,
-  RotateCcw,
-  X,
-  Clock,
-  Calendar,
-  Sparkles
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, RotateCcw, X } from 'lucide-react';
+
+function formatWhen(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return `Today, ${time}`;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+}
 
 export default function SnapshotModal({
   notebookId,
@@ -22,6 +23,7 @@ export default function SnapshotModal({
   const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     if (!isOpen || !notebookId) return;
@@ -39,21 +41,27 @@ export default function SnapshotModal({
       });
   }, [isOpen, notebookId]);
 
-  // Escape key handler
+  // Escape closes. The listener must stay attached for the whole time the modal
+  // is open: other window keydown handlers (e.g. the canvas tool shortcuts)
+  // trigger synchronous store re-renders mid-dispatch, and re-subscribing on
+  // every new inline onClose would drop this listener before it runs.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleCreateSnapshot = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setSaveError('');
     try {
       const res = await fetch(`/api/notebooks/${notebookId}/snapshots`, {
         method: 'POST',
@@ -68,110 +76,95 @@ export default function SnapshotModal({
         const data = await res.json();
         setSnapshots([data.snapshot, ...snapshots]);
         setTitle('');
+      } else {
+        setSaveError('Couldn’t save this version. Check your connection and try again.');
       }
     } catch (err) {
       console.error('Error creating snapshot:', err);
+      setSaveError('Couldn’t save this version. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div
-      onClick={onClose}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-md animate-in fade-in select-none"
-    >
+    <div onClick={onClose} className="scrim select-none">
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white/98 dark:bg-slate-900/98 rounded-[2rem] max-w-md w-full p-6 shadow-2xl border border-slate-200/90 dark:border-slate-800 ring-1 ring-black/5 dark:ring-white/10 flex flex-col gap-5 text-slate-900 dark:text-slate-100 animate-in zoom-in-95 duration-200"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="snapshot-title"
+        className="index-card sm:max-w-md"
       >
-        
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 rounded-2xl">
-              <History className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">Version Snapshots</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Save checkpoints & restore previous versions</p>
-            </div>
+        <div className="index-card-head">
+          <div>
+            <h2 id="snapshot-title" className="index-card-title">Saved versions</h2>
+            <p className="text-sm text-pencil mt-0.5">Save this page as it is now, and go back to it later.</p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
+          <button type="button" onClick={onClose} className="icon-btn icon-btn-sm -mr-2" title="Close" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Create Snapshot Form */}
-        <form onSubmit={handleCreateSnapshot} className="flex items-center gap-2">
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Design review v1, pre-meeting sketch"
-            className="flex-1 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:border-amber-500"
-          />
-          <button
-            type="submit"
-            disabled={saving}
-            className="flex items-center gap-1 px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>{saving ? 'Saving...' : 'Save Checkpoint'}</span>
-          </button>
-        </form>
-
-        {/* Snapshots List */}
-        <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">Past Versions</div>
-          {loading ? (
-            <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">Loading history...</div>
-          ) : snapshots.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
-              No snapshots created yet. Click "Save Checkpoint" above to record current progress.
+        <div className="index-card-body flex flex-col gap-5">
+          <form onSubmit={handleCreateSnapshot} className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Name this version (optional)"
+                aria-label="Version name"
+                className="field flex-1 min-w-0"
+              />
+              <button type="submit" disabled={saving} className="btn btn-primary shrink-0">
+                <Plus className="w-4 h-4" />
+                {saving ? 'Saving…' : 'Save version'}
+              </button>
             </div>
-          ) : (
-            <div className="flex flex-col gap-2 max-h-56 overflow-y-auto pr-1">
-              {snapshots.map((snap) => (
-                <div
-                  key={snap.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700 hover:border-slate-200 dark:hover:border-slate-600 transition-colors"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <div className="text-xs font-semibold text-slate-900 dark:text-white">{snap.title || 'Untitled Checkpoint'}</div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(snap.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span>•</span>
-                      <span>By {snap.creator_name || 'User'}</span>
-                    </div>
-                  </div>
+            {saveError && <div role="alert" className="text-sm text-correction">{saveError}</div>}
+          </form>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`Restore version "${snap.title}"? Current unsaved work will be overwritten.`)) {
-                        onRestoreSnapshot(snap);
-                        onClose();
-                      }
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+          <div className="flex flex-col">
+            <div className="text-sm font-semibold text-ink pb-2 border-b border-rule">Earlier versions</div>
+            {loading ? (
+              <div className="py-8 text-center text-sm text-pencil">Loading versions…</div>
+            ) : snapshots.length === 0 ? (
+              <div className="py-8 text-center text-sm text-pencil">
+                No saved versions yet. Save one above before a big change.
+              </div>
+            ) : (
+              <ul className="flex flex-col max-h-64 overflow-y-auto">
+                {snapshots.map((snap) => (
+                  <li
+                    key={snap.id}
+                    className="flex items-center justify-between gap-3 py-3 border-b border-rule last:border-b-0"
                   >
-                    <RotateCcw className="w-3 h-3 text-slate-500 dark:text-slate-400" />
-                    <span>Restore</span>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-ink truncate">{snap.title || 'Untitled version'}</div>
+                      <div className="text-xs text-pencil truncate">
+                        {formatWhen(snap.created_at)}{snap.creator_name ? `, by ${snap.creator_name}` : ''}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm(`Restore “${snap.title || 'Untitled version'}”? The page will be replaced with this version.`)) {
+                          onRestoreSnapshot(snap);
+                          onClose();
+                        }
+                      }}
+                      className="btn btn-outline btn-sm shrink-0"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Restore
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
-
       </div>
     </div>
   );

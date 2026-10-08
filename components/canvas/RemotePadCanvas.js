@@ -24,7 +24,6 @@ import {
   Hand,
   Maximize2,
   Minimize2,
-  RotateCcw,
   Undo2,
   Redo2,
   Trash2,
@@ -32,17 +31,14 @@ import {
   ChevronRight,
   ChevronDown,
   Laptop,
-  Wifi,
   WifiOff,
   Check,
-  CheckCircle2,
   Sliders,
   Palette,
   Tablet,
   Plus,
   ArrowLeft,
   Grid,
-  Layers,
   Sun,
   Moon,
   Lock,
@@ -50,25 +46,23 @@ import {
 } from 'lucide-react';
 
 const LIGHT_PAD_COLORS = [
-  { name: 'Obsidian', hex: '#0f172a' },
-  { name: 'Slate', hex: '#475569' },
-  { name: 'Royal Blue', hex: '#2563eb' },
-  { name: 'Indigo', hex: '#4f46e5' },
-  { name: 'Emerald', hex: '#059669' },
-  { name: 'Amber', hex: '#d97706' },
-  { name: 'Crimson', hex: '#dc2626' },
-  { name: 'Purple', hex: '#9333ea' }
+  { name: 'Graphite', hex: '#0f172a' },
+  { name: 'Pencil grey', hex: '#475569' },
+  { name: 'Ballpoint blue', hex: '#2340c8' },
+  { name: 'Green ink', hex: '#1f7a4d' },
+  { name: 'Correction red', hex: '#c42e38' },
+  { name: 'Sepia', hex: '#a15c12' },
+  { name: 'Violet', hex: '#6d3fc0' }
 ];
 
 const DARK_PAD_COLORS = [
-  { name: 'Pure White', hex: '#f8fafc' },
-  { name: 'Bright Yellow', hex: '#facc15' },
-  { name: 'Neon Sky', hex: '#38bdf8' },
-  { name: 'Mint Emerald', hex: '#34d399' },
-  { name: 'Coral Pink', hex: '#fb7185' },
-  { name: 'Lilac Purple', hex: '#c084fc' },
-  { name: 'Vibrant Orange', hex: '#fb923c' },
-  { name: 'Muted Slate', hex: '#94a3b8' }
+  { name: 'Chalk white', hex: '#f8fafc' },
+  { name: 'Highlighter yellow', hex: '#e2d348' },
+  { name: 'Light blue', hex: '#92a5ff' },
+  { name: 'Mint', hex: '#74cc94' },
+  { name: 'Coral', hex: '#ff7d7d' },
+  { name: 'Lilac', hex: '#c4a5ff' },
+  { name: 'Grey', hex: '#94a3b8' }
 ];
 
 const STROKE_WIDTH_PRESETS = [
@@ -134,30 +128,40 @@ export default function RemotePadCanvas({
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('tablet_canvas_theme');
-      if (savedTheme === 'dark') {
-        setIsDarkMode(true);
-        setColor('#f8fafc');
-      }
+    if (typeof window === 'undefined') return;
+    let savedTheme = null;
+    try {
+      savedTheme = localStorage.getItem('tablet_canvas_theme');
+    } catch (_) {}
+    // No pad-specific choice yet: follow the app theme already applied to <html>
+    const startDark = savedTheme
+      ? savedTheme === 'dark'
+      : document.documentElement.classList.contains('dark');
+    if (startDark) {
+      setIsDarkMode(true);
+      setColor('#f8fafc');
     }
   }, []);
 
+  // Keep the page chrome (token colours) in step with the pad's canvas theme
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.classList.toggle('dark', isDarkMode);
+  }, [isDarkMode]);
+
   const toggleDarkMode = () => {
     vibrate(10);
-    setIsDarkMode((prev) => {
-      const next = !prev;
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('tablet_canvas_theme', next ? 'dark' : 'light');
-      }
-      if (next && (color === '#0f172a' || color === '#1e293b' || color === '#475569')) {
-        setColor('#f8fafc');
-      } else if (!next && (color === '#f8fafc' || color === '#ffffff')) {
-        setColor('#0f172a');
-      }
-      showToast(next ? 'Dark Canvas: ON' : 'Light Canvas: ON');
-      return next;
-    });
+    const next = !isDarkMode;
+    try {
+      localStorage.setItem('tablet_canvas_theme', next ? 'dark' : 'light');
+    } catch (_) {}
+    if (next && (color === '#0f172a' || color === '#1e293b' || color === '#475569')) {
+      setColor('#f8fafc');
+    } else if (!next && (color === '#f8fafc' || color === '#ffffff')) {
+      setColor('#0f172a');
+    }
+    setIsDarkMode(next);
+    showToast(next ? 'Dark paper' : 'Light paper');
   };
 
   // Viewport transforms (Zoom & Pan)
@@ -212,13 +216,25 @@ export default function RemotePadCanvas({
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
       setIsFullscreen(true);
-      showToast('Entered Fullscreen');
+      showToast('Fullscreen on');
     } else {
       document.exitFullscreen().catch(() => {});
       setIsFullscreen(false);
-      showToast('Exited Fullscreen');
+      showToast('Fullscreen off');
     }
   };
+
+  // Fullscreen API is missing on iPhone Safari; hide the button there
+  const [canFullscreen, setCanFullscreen] = useState(false);
+  useEffect(() => {
+    setCanFullscreen(Boolean(document.fullscreenEnabled));
+  }, []);
+
+  // Undo history belongs to one page; drop it when the page changes
+  useEffect(() => {
+    setUndoStack([]);
+    setRedoStack([]);
+  }, [activePageIndex]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -242,7 +258,7 @@ export default function RemotePadCanvas({
     vibrate(10);
     setZoom(1.0);
     setPan({ x: 0, y: 0 });
-    showToast('View Reset (100%)');
+    showToast('View reset to 100%');
   };
 
   // Non-passive wheel event handling
@@ -354,7 +370,7 @@ export default function RemotePadCanvas({
 
   function drawBackgroundPattern(ctx, width, height, type, z, px, py) {
     ctx.save();
-    ctx.fillStyle = isDarkMode ? '#0f172a' : '#ffffff';
+    ctx.fillStyle = isDarkMode ? '#222529' : '#FCFCFA';
     ctx.fillRect(0, 0, width, height);
 
     const paperType = type || 'dotted';
@@ -368,7 +384,7 @@ export default function RemotePadCanvas({
     const offsetY = ((py % gridSize) + gridSize) % gridSize;
 
     if (paperType === 'dotted') {
-      ctx.fillStyle = isDarkMode ? '#64748b' : '#64748b';
+      ctx.fillStyle = isDarkMode ? '#4A5057' : '#BFC4BB';
       const dotRadius = Math.max(1.5, 1.8 * Math.min(z, 1.5));
       for (let x = offsetX; x < width; x += gridSize) {
         for (let y = offsetY; y < height; y += gridSize) {
@@ -378,7 +394,7 @@ export default function RemotePadCanvas({
         }
       }
     } else if (paperType === 'grid') {
-      ctx.strokeStyle = isDarkMode ? '#475569' : '#94a3b8';
+      ctx.strokeStyle = isDarkMode ? '#3A3F45' : '#D4D8D1';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = offsetX; x < width; x += gridSize) {
@@ -395,7 +411,7 @@ export default function RemotePadCanvas({
     } else if (paperType === 'ruled') {
       const lineSpacing = 32 * z;
       const offY = ((py % lineSpacing) + lineSpacing) % lineSpacing;
-      ctx.strokeStyle = isDarkMode ? '#475569' : '#94a3b8';
+      ctx.strokeStyle = isDarkMode ? '#3A3F45' : '#D4D8D1';
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let y = offY; y < height; y += lineSpacing) {
@@ -410,7 +426,7 @@ export default function RemotePadCanvas({
       const marginScreenX = marginWorldX * z + px;
       if (marginScreenX >= 0 && marginScreenX <= width) {
         ctx.beginPath();
-        ctx.strokeStyle = isDarkMode ? '#f43f5e99' : '#e11d4899';
+        ctx.strokeStyle = isDarkMode ? 'rgba(255,125,125,0.55)' : 'rgba(196,46,56,0.55)';
         ctx.lineWidth = 2;
         const lineMarginX = Math.floor(marginScreenX) + 0.5;
         ctx.moveTo(lineMarginX, 0);
@@ -429,6 +445,11 @@ export default function RemotePadCanvas({
     const rect = container.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
+
+    setShowShapesMenu(false);
+    setShowWidthMenu(false);
+    setShowPageMenu(false);
+    setShowBackgroundMenu(false);
 
     // If pointer went down on a StickyTextBlock, don't intercept it
     const isOnTextBlock = e.target.closest?.('[data-text-block]');
@@ -828,6 +849,9 @@ export default function RemotePadCanvas({
       if (lastOp.shape?.id || lastOp.shapeId) {
         onSendOp({ type: 'shape:delete', shapeId: lastOp.shape?.id || lastOp.shapeId });
       }
+    } else if (lastOp.type === 'text:update' && lastOp.textBlock?.id) {
+      const id = lastOp.textBlock.id;
+      onSendOp({ type: 'text:delete', textBlockId: id, textBlock: { id, deleted: true } });
     } else {
       onSendOp(lastOp);
     }
@@ -838,269 +862,237 @@ export default function RemotePadCanvas({
     vibrate(20);
     onSendOp({ type: 'stroke:clear' });
     setShowClearConfirm(false);
-    showToast('Page Canvas Cleared');
+    showToast('Page cleared');
   };
 
   const togglePalmRejection = () => {
     vibrate(10);
-    setPalmRejection(prev => {
-      const next = !prev;
-      showToast(next ? 'Stylus Only: Palm Rejection ON' : 'Touch & Stylus Drawing ON');
-      return next;
-    });
+    const next = !palmRejection;
+    setPalmRejection(next);
+    showToast(next ? "Stylus only: fingers won't draw" : 'Fingers and stylus both draw');
   };
 
   const activePage = pages[activePageIndex] || { title: 'Page 1' };
   const activeShapeTool = SHAPE_TOOLS.find(s => s.id === tool);
 
+  const palette = isDarkMode ? DARK_PAD_COLORS : LIGHT_PAD_COLORS;
+  const isCustomColor = !palette.some((c) => c.hex === color);
+
+  const toolClass = (active) =>
+    `w-11 h-11 shrink-0 rounded-ctl flex items-center justify-center transition-colors ${
+      active ? 'hl' : 'text-pencil hover:text-ink hover:bg-paper-2'
+    }`;
+
+  const syncLabel =
+    syncStatus === 'syncing' ? 'Syncing' : syncStatus === 'offline' ? 'Offline, reconnecting' : `Synced with ${targetDeviceName}`;
+  const syncDot =
+    syncStatus === 'syncing' ? 'bg-highlight animate-pulse-subtle' : syncStatus === 'offline' ? 'bg-correction' : 'bg-ok';
+
+  const divider = <span aria-hidden="true" className="w-px h-7 bg-rule shrink-0 mx-0.5" />;
+
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 select-none touch-none font-sans text-slate-100">
-      {/* Toast Notification Banner */}
+    <div className="flex flex-col h-[100dvh] w-screen overflow-hidden bg-desk select-none touch-none font-sans text-ink">
+      {/* Toast */}
       {toastMessage && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 pointer-events-none transition-all duration-200">
-          <div className="bg-slate-900/90 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-xl border border-slate-700/80 backdrop-blur-md flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+        <div
+          role="status"
+          className="fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none"
+          style={{ top: 'calc(env(safe-area-inset-top) + 4.25rem)' }}
+        >
+          <div className="bg-ink text-paper text-sm font-medium px-4 h-9 flex items-center rounded-ctl shadow-float whitespace-nowrap">
             {toastMessage}
           </div>
         </div>
       )}
 
-      {/* Modern Tablet Top Header Bar */}
-      <header className="flex items-center justify-between px-3 md:px-5 py-2.5 bg-slate-900/95 border-b border-slate-800/80 backdrop-blur-md z-30 shadow-xs">
-        {/* Left: Exit/Disconnect button & Notebook Page Title with Dropdown */}
-        <div className="flex items-center gap-2.5">
-          {onExit && (
-            <button
-              type="button"
-              onClick={onExit}
-              title={isCanvasOnly ? "Disconnect Drawing Pad" : "Return to notebook overview"}
-              className={`p-2 rounded-xl transition-colors ${
-                isCanvasOnly
-                  ? "text-slate-400 hover:text-rose-400 hover:bg-rose-950/30 border border-slate-800"
-                  : "text-slate-400 hover:text-white hover:bg-slate-800/80"
-              }`}
-            >
-              {isCanvasOnly ? <Power className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
-            </button>
-          )}
-
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setShowPageMenu(!showPageMenu);
-                setShowBackgroundMenu(false);
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-colors text-left"
-            >
-              <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-[11px] text-white shadow-xs">
-                P{activePageIndex + 1}
-              </div>
-              <div className="max-w-[140px] md:max-w-[200px] truncate">
-                <p className="text-xs font-semibold text-slate-200 truncate leading-tight">
-                  {notebookTitle}
-                </p>
-                <p className="text-[10px] text-slate-400 truncate">
-                  {activePage.title} • {pages.length} {pages.length === 1 ? 'page' : 'pages'}
-                </p>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            {/* Pages Navigation Popover */}
-            {showPageMenu && (
-              <div className="absolute top-full left-0 mt-2 w-64 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-2 z-50">
-                <div className="flex items-center justify-between px-2 py-1 mb-1">
-                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notebook Pages</span>
-                  {!isCanvasOnly && onCreatePage && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onCreatePage();
-                        setShowPageMenu(false);
-                      }}
-                      className="text-[11px] text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" /> New
-                    </button>
-                  )}
-                </div>
-
-                <div className="max-h-56 overflow-y-auto space-y-1">
-                  {pages.map((p, idx) => (
-                    <button
-                      key={p.id || idx}
-                      type="button"
-                      onClick={() => {
-                        onSelectPage?.(idx);
-                        setShowPageMenu(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-colors ${
-                        activePageIndex === idx
-                          ? 'bg-indigo-600 text-white shadow-sm'
-                          : 'text-slate-300 hover:bg-slate-800'
-                      }`}
-                    >
-                      <span className="truncate">Page {idx + 1}: {p.title}</span>
-                      {activePageIndex === idx && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Page Prev/Next Steppers */}
-          {pages.length > 1 && (
-            <div className="hidden sm:flex items-center gap-1 bg-slate-800/80 p-0.5 rounded-xl border border-slate-700/60">
-              <button
-                type="button"
-                disabled={activePageIndex <= 0}
-                onClick={() => onSelectPage?.(activePageIndex - 1)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
-                title="Previous Page"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <span className="text-[11px] font-mono px-1 text-slate-300">
-                {activePageIndex + 1}/{pages.length}
-              </span>
-              <button
-                type="button"
-                disabled={activePageIndex >= pages.length - 1}
-                onClick={() => onSelectPage?.(activePageIndex + 1)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
-                title="Next Page"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Center: Live PC Bridge & Sync Status */}
-        <div className="flex items-center gap-2">
-          {isCanvasOnly && (
-            <div
-              className="flex items-center gap-1 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20 text-amber-300 text-[11px] font-medium"
-              title="Restricted drawing pad mode: Canvas writing only. No account or user data access."
-            >
-              <Lock className="w-3 h-3 text-amber-400" />
-              <span className="hidden sm:inline">Canvas Only</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2 bg-slate-800/90 px-3 py-1.5 rounded-full border border-slate-700/80 shadow-inner">
-            <Laptop className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-xs font-medium text-slate-200 hidden md:inline">
-              Paired with {targetDeviceName}
-            </span>
-            <span className="text-xs font-medium text-slate-200 md:hidden">
-              Paired
-            </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          </div>
-
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-800/80 border border-slate-700/60 text-[11px] text-slate-300 shadow-xs">
-            {syncStatus === 'syncing' ? (
-              <>
-                <span className="w-2 h-2 rounded-full border-2 border-amber-400 border-t-transparent animate-spin"></span>
-                <span className="text-amber-300 font-medium">Syncing...</span>
-              </>
-            ) : syncStatus === 'offline' ? (
-              <>
-                <WifiOff className="w-3 h-3 text-rose-400" />
-                <span className="text-rose-400 font-medium">Offline (Connecting...)</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                <span className="text-emerald-400 font-medium">Synced with PC</span>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Palm Rejection Toggle, Paper Style, Fullscreen */}
-        <div className="flex items-center gap-1.5">
-          {/* Palm Rejection Stylus Priority Button */}
+      {/* Top bar */}
+      <header
+        className="relative z-30 flex items-center gap-1 sm:gap-2 pb-1.5 bg-paper border-b border-rule"
+        style={{
+          paddingTop: 'max(0.375rem, env(safe-area-inset-top))',
+          paddingLeft: 'max(0.375rem, env(safe-area-inset-left))',
+          paddingRight: 'max(0.375rem, env(safe-area-inset-right))'
+        }}
+      >
+        {onExit && (
           <button
             type="button"
-            onClick={togglePalmRejection}
-            title={palmRejection ? 'Palm Rejection Active: Only Stylus / Apple Pencil draws' : 'Touch Mode: Fingers can draw'}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-              palmRejection
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/40'
-                : 'bg-slate-800/90 text-slate-300 hover:text-white border border-slate-700'
-            }`}
+            onClick={onExit}
+            title={isCanvasOnly ? 'Disconnect this pad' : 'Back to notebook'}
+            aria-label={isCanvasOnly ? 'Disconnect this pad' : 'Back to notebook'}
+            className={`icon-btn w-11 h-11 ${isCanvasOnly ? 'hover:text-correction' : ''}`}
           >
-            <Tablet className="w-3.5 h-3.5 text-indigo-400" />
-            <span>
-              {palmRejection ? 'Stylus Mode: ON (Palm Rejection)' : 'Stylus Mode: OFF'}
+            {isCanvasOnly ? <Power className="w-5 h-5" /> : <ArrowLeft className="w-5 h-5" />}
+          </button>
+        )}
+
+        {/* Page picker */}
+        <div className="relative min-w-0">
+          <button
+            type="button"
+            onClick={() => {
+              setShowPageMenu(!showPageMenu);
+              setShowBackgroundMenu(false);
+            }}
+            aria-expanded={showPageMenu}
+            className="flex items-center gap-2.5 h-11 pl-1.5 pr-2.5 rounded-ctl hover:bg-paper-2 transition-colors text-left min-w-0 max-w-full"
+          >
+            <span className="w-8 h-8 shrink-0 rounded-book bg-ink text-paper flex items-center justify-center text-xs font-bold tabular-nums">
+              {activePageIndex + 1}
             </span>
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-ink truncate leading-tight max-w-[9.5rem] sm:max-w-[16rem]">
+                {notebookTitle}
+              </span>
+              <span className="block text-xs text-pencil truncate leading-tight max-w-[9.5rem] sm:max-w-[16rem]">
+                {activePage.title}
+              </span>
+            </span>
+            <ChevronDown className={`w-4 h-4 shrink-0 text-pencil transition-transform ${showPageMenu ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Paper Background Menu */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => {
-                setShowBackgroundMenu(!showBackgroundMenu);
-                setShowPageMenu(false);
-              }}
-              title="Paper Pattern"
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-
-            {showBackgroundMenu && (
-              <div className="absolute top-full right-0 mt-2 w-36 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-1.5 z-50">
-                {BACKGROUND_TYPES.map((b) => (
+          {showPageMenu && (
+            <div className="menu absolute top-full left-0 mt-2 w-[min(18rem,calc(100vw-1rem))] z-50">
+              <div className="flex items-center justify-between px-3 pt-1 pb-2">
+                <span className="text-sm font-semibold text-ink">
+                  {pages.length} {pages.length === 1 ? 'page' : 'pages'}
+                </span>
+                {!isCanvasOnly && onCreatePage && (
                   <button
-                    key={b.id}
                     type="button"
                     onClick={() => {
-                      setBackgroundType(b.id);
-                      setShowBackgroundMenu(false);
+                      onCreatePage();
+                      setShowPageMenu(false);
                     }}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
-                      backgroundType === b.id
-                        ? 'bg-indigo-600 text-white'
-                        : 'text-slate-300 hover:bg-slate-800'
-                    }`}
+                    className="btn btn-sm btn-quiet"
                   >
-                    <span>{b.label}</span>
-                    {backgroundType === b.id && <Check className="w-3 h-3" />}
+                    <Plus className="w-4 h-4" /> New page
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[50dvh] overflow-y-auto">
+                {pages.map((p, idx) => (
+                  <button
+                    key={p.id || idx}
+                    type="button"
+                    onClick={() => {
+                      onSelectPage?.(idx);
+                      setShowPageMenu(false);
+                    }}
+                    className="menu-item h-11"
+                  >
+                    <span className="w-6 text-pencil tabular-nums text-right shrink-0">{idx + 1}</span>
+                    <span className={`truncate flex-1 ${activePageIndex === idx ? 'hl px-1.5 -mx-1.5' : ''}`}>{p.title}</span>
+                    {activePageIndex === idx && <Check className="w-4 h-4 shrink-0" />}
                   </button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+        </div>
 
-          {/* Dark Mode Toggle */}
+        {/* Prev / next page */}
+        {pages.length > 1 && (
+          <div className="hidden sm:flex items-center">
+            <button
+              type="button"
+              disabled={activePageIndex <= 0}
+              onClick={() => onSelectPage?.(activePageIndex - 1)}
+              className="icon-btn w-11 h-11"
+              title="Previous page"
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-sm text-pencil tabular-nums px-1 whitespace-nowrap">
+              {activePageIndex + 1} of {pages.length}
+            </span>
+            <button
+              type="button"
+              disabled={activePageIndex >= pages.length - 1}
+              onClick={() => onSelectPage?.(activePageIndex + 1)}
+              className="icon-btn w-11 h-11"
+              title="Next page"
+              aria-label="Next page"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Connection status */}
+        <div
+          className="flex items-center gap-2 h-9 px-2.5 rounded-ctl border border-rule bg-paper-2/60 text-sm text-ink shrink-0"
+          title={isCanvasOnly ? `${syncLabel}. This pad can only draw; it has no access to the account.` : syncLabel}
+        >
+          {syncStatus === 'offline' ? <WifiOff className="w-4 h-4 text-correction" /> : <Laptop className="w-4 h-4 text-pencil" />}
+          <span className={`w-2 h-2 rounded-full shrink-0 ${syncDot}`} />
+          <span className="hidden md:inline whitespace-nowrap">{syncLabel}</span>
+          {isCanvasOnly && <Lock className="hidden lg:block w-3.5 h-3.5 text-pencil" />}
+        </div>
+
+        {/* Paper style */}
+        <div className="relative">
           <button
             type="button"
-            onClick={toggleDarkMode}
-            title={isDarkMode ? 'Switch to Light Canvas' : 'Switch to Dark Canvas'}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
+            onClick={() => {
+              setShowBackgroundMenu(!showBackgroundMenu);
+              setShowPageMenu(false);
+            }}
+            title="Paper style"
+            aria-label="Paper style"
+            aria-expanded={showBackgroundMenu}
+            className={`icon-btn w-11 h-11 ${showBackgroundMenu ? 'bg-paper-2 text-ink' : ''}`}
           >
-            {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-300" />}
+            <Grid className="w-5 h-5" />
           </button>
 
-          {/* Fullscreen Button */}
+          {showBackgroundMenu && (
+            <div className="menu absolute top-full right-0 mt-2 w-44 z-50">
+              {BACKGROUND_TYPES.map((b) => (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => {
+                    setBackgroundType(b.id);
+                    setShowBackgroundMenu(false);
+                  }}
+                  className="menu-item h-11 justify-between"
+                >
+                  <span className={backgroundType === b.id ? 'hl px-1.5 -mx-1.5' : ''}>{b.label}</span>
+                  {backgroundType === b.id && <Check className="w-4 h-4" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleDarkMode}
+          title={isDarkMode ? 'Light paper' : 'Dark paper'}
+          aria-label={isDarkMode ? 'Switch to light paper' : 'Switch to dark paper'}
+          className="icon-btn w-11 h-11"
+        >
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+        </button>
+
+        {canFullscreen && (
           <button
             type="button"
             onClick={toggleFullscreen}
-            title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/60 transition-colors"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+            className="icon-btn w-11 h-11 hidden sm:inline-flex"
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
-        </div>
+        )}
       </header>
 
-      {/* Main Touch Canvas Viewport */}
+      {/* Drawing surface */}
       <div
         ref={containerRef}
         onPointerDown={handlePointerDown}
@@ -1108,14 +1100,14 @@ export default function RemotePadCanvas({
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
         onPointerCancel={handlePointerUp}
-        className={`relative flex-1 ${isDarkMode ? 'bg-slate-900' : 'bg-white'} touch-none ${
+        className={`relative flex-1 min-h-0 bg-paper touch-none ${
           tool === 'hand' ? 'cursor-grab active:cursor-grabbing' : tool === 'text' ? 'cursor-text' : 'cursor-crosshair'
         }`}
       >
         <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
         <canvas ref={draftCanvasRef} className="absolute inset-0 pointer-events-none" />
 
-        {/* World-space Canvas Viewport Layer: Transforms all in-canvas HTML elements in 100% exact sync with 2D canvas */}
+        {/* World-space layer: keeps HTML notes in sync with the 2D canvas transform */}
         <div
           className="absolute inset-0 pointer-events-none origin-top-left overflow-visible z-10"
           style={{
@@ -1144,56 +1136,58 @@ export default function RemotePadCanvas({
           ))}
         </div>
 
-        {/* Type Mode Helper Banner */}
+        {/* Note mode hint */}
         {tool === 'text' && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 px-3 py-1.5 bg-indigo-600 text-white rounded-full shadow-lg text-xs font-medium animate-pulse">
-            <Type size={14} />
-            <span>Type Mode: Tap anywhere on canvas to write a note</span>
+          <div className="absolute top-16 left-3 right-3 sm:top-3 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 z-20 sm:w-max max-w-md flex items-center justify-between gap-2 pl-3 pr-1 py-1 rounded-ctl hl shadow-lift pointer-events-auto">
+            <span className="flex items-center gap-2 text-sm font-medium min-w-0">
+              <Type className="w-4 h-4 shrink-0" />
+              <span className="truncate">Tap the page to place a note</span>
+            </span>
             <button
+              type="button"
               onClick={() => {
                 setTool('pen');
                 vibrate(8);
               }}
-              className="ml-2 px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded text-[11px] font-semibold"
+              className="h-9 px-3 rounded-ctl text-sm font-semibold hover:bg-black/10 shrink-0"
             >
-              Draw Mode
+              Back to pen
             </button>
           </div>
         )}
 
-        {/* Floating Zoom & Reset View HUD */}
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-2xl border border-slate-700/80 shadow-lg pointer-events-auto">
+        {/* Zoom */}
+        <div className="absolute top-3 right-3 z-20 flex items-center panel p-0.5 pointer-events-auto">
           <button
             type="button"
             onClick={() => handleZoomChange(-0.1)}
             disabled={zoom <= 0.25}
-            title="Zoom Out"
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 disabled:opacity-30 transition-all"
+            title="Zoom out"
+            aria-label="Zoom out"
+            className="icon-btn w-10 h-10"
           >
-            <Minus className="w-3.5 h-3.5" />
+            <Minus className="w-4 h-4" />
           </button>
-
           <button
             type="button"
             onClick={handleResetView}
-            title="Reset View (100%)"
-            className="px-2.5 h-8 rounded-xl text-xs font-mono font-semibold text-slate-200 hover:text-white hover:bg-slate-800 active:scale-95 transition-all"
+            title="Reset to 100%"
+            className="h-10 min-w-[3.25rem] px-1.5 rounded-ctl text-sm font-semibold tabular-nums text-ink hover:bg-paper-2"
           >
             {Math.round(zoom * 100)}%
           </button>
-
           <button
             type="button"
             onClick={() => handleZoomChange(0.1)}
             disabled={zoom >= 4.0}
-            title="Zoom In"
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 disabled:opacity-30 transition-all"
+            title="Zoom in"
+            aria-label="Zoom in"
+            className="icon-btn w-10 h-10"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Interactive Canvas MiniMap on Connected Device */}
         <MiniMap
           documentState={documentState}
           containerRef={containerRef}
@@ -1206,334 +1200,273 @@ export default function RemotePadCanvas({
         />
       </div>
 
-      {/* Touch-Optimized Ergonomic Bottom Dock */}
-      <footer className="relative bg-slate-950/95 border-t border-slate-800/80 px-2 sm:px-4 py-2.5 z-30 flex flex-wrap items-center justify-between gap-2 shadow-2xl backdrop-blur-md">
-        
-        {/* Draw vs Type Mode Toggle */}
-        <div className="flex items-center p-0.5 bg-slate-900/90 rounded-2xl border border-slate-800/80 shadow-inner">
-          <button
-            type="button"
-            onClick={() => {
-              if (tool === 'text') setTool('pen');
-              vibrate(8);
-            }}
-            title="Draw Mode: Draw freehand or geometric shapes"
-            className={`p-2 sm:px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              tool !== 'text' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Pen className="w-4 h-4" />
-            <span className="hidden sm:inline">Draw</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTool('text');
-              vibrate(8);
-            }}
-            title="Type Note Mode: Tap anywhere to type note"
-            className={`p-2 sm:px-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all ${
-              tool === 'text' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Type className="w-4 h-4" />
-            <span className="hidden sm:inline">Type Note</span>
-          </button>
-        </div>
+      {/* Tool dock: one scrollable row on phones, spread out on wide tablets */}
+      <footer
+        className="relative z-30 bg-paper border-t border-rule"
+        style={{
+          paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))',
+          paddingLeft: 'env(safe-area-inset-left)',
+          paddingRight: 'env(safe-area-inset-right)'
+        }}
+      >
+        {/* Popovers live outside the scroller so they aren't clipped */}
+        {showShapesMenu && (
+          <div className="menu absolute bottom-full left-2 mb-2 flex items-center gap-1 z-50">
+            {SHAPE_TOOLS.map((s) => {
+              const Icon = s.icon;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => {
+                    setTool(s.id);
+                    setShowShapesMenu(false);
+                    vibrate(10);
+                  }}
+                  className={toolClass(tool === s.id)}
+                  title={s.label}
+                  aria-label={s.label}
+                >
+                  <Icon className="w-5 h-5" />
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Drawing Tools Group */}
-        <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-2xl border border-slate-800/80 shadow-inner">
-          <button
-            type="button"
-            onClick={() => { setTool('pen'); vibrate(10); }}
-            title="Pen (Natural Ink)"
-            className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center ${
-              tool === 'pen'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
-          >
-            <Pen className="w-5 h-5" />
-          </button>
+        {showWidthMenu && (
+          <div className="menu absolute bottom-full right-2 mb-2 p-3 w-60 z-50">
+            <span className="block text-sm font-semibold text-ink mb-2">Line width</span>
+            <div className="grid grid-cols-2 gap-1.5 mb-3">
+              {STROKE_WIDTH_PRESETS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => {
+                    setStrokeWidth(p.value);
+                    setShowWidthMenu(false);
+                    vibrate(8);
+                  }}
+                  className={`h-11 px-2.5 rounded-ctl text-sm font-medium flex items-center gap-2 transition-colors ${
+                    strokeWidth === p.value ? 'hl' : 'bg-paper-2 text-ink hover:bg-rule/60'
+                  }`}
+                >
+                  <span
+                    className="rounded-full bg-current shrink-0"
+                    style={{ width: Math.min(p.value, 12), height: Math.min(p.value, 12) }}
+                  />
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="32"
+              value={strokeWidth}
+              onChange={(e) => setStrokeWidth(Number(e.target.value))}
+              aria-label="Line width in pixels"
+              className="w-full h-8 accent-[rgb(var(--ballpoint))]"
+            />
+          </div>
+        )}
 
-          <button
-            type="button"
-            onClick={() => { setTool('pencil'); vibrate(10); }}
-            title="Pencil (Graphite Sketch)"
-            className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center ${
-              tool === 'pencil'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
-          >
-            <Pencil className="w-5 h-5" />
-          </button>
+        <div className="scroll-x px-1.5 pt-1.5 [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] lg:[mask-image:none]">
+          <div className="flex items-center gap-1 w-max min-w-full pr-8 lg:pr-0 lg:justify-between">
+            {/* Pen vs note */}
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  if (tool === 'text') setTool('pen');
+                  vibrate(8);
+                }}
+                title="Draw"
+                className={`h-11 px-3 rounded-ctl text-sm font-semibold flex items-center gap-1.5 transition-colors ${
+                  tool !== 'text' ? 'bg-ink text-paper' : 'text-pencil hover:text-ink hover:bg-paper-2'
+                }`}
+              >
+                <Pen className="w-4 h-4" />
+                <span className="hidden sm:inline">Draw</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTool('text');
+                  vibrate(8);
+                }}
+                title="Write a note"
+                className={`h-11 px-3 rounded-ctl text-sm font-semibold flex items-center gap-1.5 transition-colors ${
+                  tool === 'text' ? 'bg-ink text-paper' : 'text-pencil hover:text-ink hover:bg-paper-2'
+                }`}
+              >
+                <Type className="w-4 h-4" />
+                <span className="hidden sm:inline">Note</span>
+              </button>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => { setTool('highlighter'); vibrate(10); }}
-            title="Highlighter"
-            className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center ${
-              tool === 'highlighter'
-                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/30 scale-105'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
-          >
-            <Highlighter className="w-5 h-5" />
-          </button>
+            {divider}
 
-          <button
-            type="button"
-            onClick={() => { setTool('eraser'); vibrate(10); }}
-            title="Eraser (Object / Stroke)"
-            className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center ${
-              tool === 'eraser'
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 scale-105'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
-          >
-            <Eraser className="w-5 h-5" />
-          </button>
+            {/* Drawing tools */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button type="button" onClick={() => { setTool('pen'); vibrate(10); }} title="Pen" aria-label="Pen" className={toolClass(tool === 'pen')}>
+                <Pen className="w-5 h-5" />
+              </button>
+              <button type="button" onClick={() => { setTool('pencil'); vibrate(10); }} title="Pencil" aria-label="Pencil" className={toolClass(tool === 'pencil')}>
+                <Pencil className="w-5 h-5" />
+              </button>
+              <button type="button" onClick={() => { setTool('highlighter'); vibrate(10); }} title="Highlighter" aria-label="Highlighter" className={toolClass(tool === 'highlighter')}>
+                <Highlighter className="w-5 h-5" />
+              </button>
+              <button type="button" onClick={() => { setTool('eraser'); vibrate(10); }} title="Eraser" aria-label="Eraser" className={toolClass(tool === 'eraser')}>
+                <Eraser className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowShapesMenu(!showShapesMenu);
+                  setShowWidthMenu(false);
+                  vibrate(10);
+                }}
+                title="Shapes"
+                aria-label="Shapes"
+                aria-expanded={showShapesMenu}
+                className={toolClass(Boolean(activeShapeTool))}
+              >
+                {activeShapeTool ? <activeShapeTool.icon className="w-5 h-5" /> : <Square className="w-5 h-5" />}
+              </button>
+              <button type="button" onClick={() => { setTool('hand'); vibrate(10); }} title="Move the page" aria-label="Move the page" className={toolClass(tool === 'hand')}>
+                <Hand className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={togglePalmRejection}
+                title={palmRejection ? "Stylus only: fingers won't draw" : 'Fingers can draw. Tap for stylus only'}
+                aria-label="Stylus only"
+                aria-pressed={palmRejection}
+                className={toolClass(palmRejection)}
+              >
+                <Tablet className="w-5 h-5" />
+              </button>
+            </div>
 
-          {/* Shapes Tool Button with Popover */}
-          <div className="relative">
+            {divider}
+
+            {/* Ink colours */}
+            <div className="flex items-center shrink-0">
+              {palette.map((c) => (
+                <button
+                  key={c.hex}
+                  type="button"
+                  onClick={() => { setColor(c.hex); vibrate(8); }}
+                  title={c.name}
+                  aria-label={c.name}
+                  aria-pressed={color === c.hex}
+                  className="w-11 h-11 shrink-0 flex items-center justify-center rounded-ctl"
+                >
+                  <span
+                    className={`block rounded-full transition-all ${
+                      color === c.hex ? 'w-7 h-7 ring-2 ring-ink ring-offset-2 ring-offset-paper' : 'w-6 h-6 ring-1 ring-black/10'
+                    }`}
+                    style={{ backgroundColor: c.hex }}
+                  />
+                </button>
+              ))}
+              <label
+                title="Custom colour"
+                className="relative w-11 h-11 shrink-0 flex items-center justify-center rounded-ctl cursor-pointer"
+              >
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  aria-label="Custom colour"
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+                <span
+                  className={`flex items-center justify-center rounded-full transition-all ${
+                    isCustomColor ? 'w-7 h-7 ring-2 ring-ink ring-offset-2 ring-offset-paper' : 'w-6 h-6 border border-dashed border-pencil'
+                  }`}
+                  style={{ backgroundColor: isCustomColor ? color : undefined }}
+                >
+                  <Palette className={`w-3.5 h-3.5 pointer-events-none ${isCustomColor ? 'text-white mix-blend-difference' : 'text-pencil'}`} />
+                </span>
+              </label>
+            </div>
+
+            {divider}
+
+            {/* Width */}
             <button
               type="button"
               onClick={() => {
-                setShowShapesMenu(!showShapesMenu);
-                setShowWidthMenu(false);
+                setShowWidthMenu(!showWidthMenu);
+                setShowShapesMenu(false);
                 vibrate(10);
               }}
-              title="Geometric Shapes"
-              className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center ${
-                activeShapeTool
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
+              title="Line width"
+              aria-expanded={showWidthMenu}
+              className={`h-11 px-3 shrink-0 rounded-ctl flex items-center gap-2 text-sm font-semibold tabular-nums transition-colors ${
+                showWidthMenu ? 'bg-paper-2 text-ink' : 'text-ink hover:bg-paper-2'
               }`}
             >
-              {activeShapeTool ? (
-                <activeShapeTool.icon className="w-5 h-5" />
-              ) : (
-                <Square className="w-5 h-5" />
-              )}
+              <span
+                className="rounded-full shrink-0"
+                style={{ width: Math.min(Math.max(strokeWidth, 4), 14), height: Math.min(Math.max(strokeWidth, 4), 14), backgroundColor: color }}
+              />
+              <span>{strokeWidth}px</span>
+              <ChevronDown className="w-4 h-4 text-pencil" />
             </button>
 
-            {showShapesMenu && (
-              <div className="absolute bottom-full left-0 mb-3 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-2 flex items-center gap-1.5 z-50">
-                {SHAPE_TOOLS.map((s) => {
-                  const Icon = s.icon;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => {
-                        setTool(s.id);
-                        setShowShapesMenu(false);
-                        vibrate(10);
-                      }}
-                      className={`p-2.5 rounded-xl transition-all ${
-                        tool === s.id ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                      }`}
-                      title={s.label}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+            {divider}
 
-          {/* Hand / Pan Tool */}
-          <button
-            type="button"
-            onClick={() => { setTool('hand'); vibrate(10); }}
-            title="Hand Tool (Pan Canvas)"
-            className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center ${
-              tool === 'hand'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 scale-105'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
-          >
-            <Hand className="w-5 h-5" />
-          </button>
-
-          {/* Stylus Mode (Palm Rejection) Dock Quick Toggle */}
-          <button
-            type="button"
-            onClick={togglePalmRejection}
-            title={palmRejection ? 'Stylus Mode Active: Only Stylus / Apple Pencil draws (Palm Rejection ON)' : 'Touch Mode: Fingers can draw (Click to activate Stylus Mode)'}
-            className={`p-2.5 sm:p-3 rounded-xl transition-all duration-150 flex items-center justify-center relative ${
-              palmRejection
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/50 scale-105'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
-          >
-            <Tablet className="w-5 h-5" />
-            {palmRejection && (
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border border-slate-900 animate-pulse"></span>
-            )}
-          </button>
-        </div>
-
-        {/* Color Palette Swatches & Custom Picker */}
-        <div className="flex items-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800/80 shadow-inner">
-          {(isDarkMode ? DARK_PAD_COLORS : LIGHT_PAD_COLORS).map((c) => (
-            <button
-              key={c.hex}
-              type="button"
-              onClick={() => { setColor(c.hex); vibrate(8); }}
-              title={c.name}
-              className={`w-7 h-7 rounded-full transition-transform duration-150 border-2 ${
-                color === c.hex
-                  ? 'scale-125 ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 border-white shadow-md'
-                  : 'border-transparent hover:scale-110'
-              }`}
-              style={{ backgroundColor: c.hex }}
-            />
-          ))}
-
-          {/* Native Color Picker Trigger */}
-          <div className="relative flex items-center justify-center">
-            <input
-              type="color"
-              value={color}
-              onChange={(e) => setColor(e.target.value)}
-              className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-              title="Custom Color"
-            />
-            <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-transform ${
-                !(isDarkMode ? DARK_PAD_COLORS : LIGHT_PAD_COLORS).some(c => c.hex === color)
-                  ? 'scale-125 ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 border-white'
-                  : 'border-slate-700 bg-gradient-to-tr from-pink-500 via-amber-400 to-indigo-500'
-              }`}
-              style={{ backgroundColor: !(isDarkMode ? DARK_PAD_COLORS : LIGHT_PAD_COLORS).some(c => c.hex === color) ? color : undefined }}
-            >
-              <Palette className="w-3.5 h-3.5 text-white drop-shadow-sm pointer-events-none" />
+            {/* History */}
+            <div className="flex items-center gap-0.5 shrink-0">
+              <button type="button" onClick={handleUndo} disabled={undoStack.length === 0} title="Undo" aria-label="Undo" className="icon-btn w-11 h-11">
+                <Undo2 className="w-5 h-5" />
+              </button>
+              <button type="button" onClick={handleRedo} disabled={redoStack.length === 0} title="Redo" aria-label="Redo" className="icon-btn w-11 h-11">
+                <Redo2 className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowClearConfirm(true); vibrate(15); }}
+                title="Clear page"
+                aria-label="Clear page"
+                className="icon-btn w-11 h-11 hover:text-correction"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
           </div>
-        </div>
-
-        {/* Thickness Controls */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => {
-              setShowWidthMenu(!showWidthMenu);
-              setShowShapesMenu(false);
-              vibrate(10);
-            }}
-            title="Stroke Width"
-            className="flex items-center gap-2 bg-slate-900/90 hover:bg-slate-900 px-3 py-2 rounded-2xl border border-slate-800/80 text-xs font-semibold text-slate-200 transition-colors"
-          >
-            <div
-              className="rounded-full bg-slate-200"
-              style={{ width: Math.max(strokeWidth, 4), height: Math.max(strokeWidth, 4) }}
-            />
-            <span>{strokeWidth}px</span>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-          </button>
-
-          {showWidthMenu && (
-            <div className="absolute bottom-full right-0 mb-3 bg-slate-900 rounded-2xl shadow-2xl border border-slate-800 p-3 w-48 z-50">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Stroke Width</span>
-              <div className="grid grid-cols-2 gap-1.5 mb-3">
-                {STROKE_WIDTH_PRESETS.map((p) => (
-                  <button
-                    key={p.value}
-                    type="button"
-                    onClick={() => {
-                      setStrokeWidth(p.value);
-                      setShowWidthMenu(false);
-                      vibrate(8);
-                    }}
-                    className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors ${
-                      strokeWidth === p.value
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-800 text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    {p.label} ({p.value}px)
-                  </button>
-                ))}
-              </div>
-
-              <input
-                type="range"
-                min="1"
-                max="32"
-                value={strokeWidth}
-                onChange={(e) => setStrokeWidth(Number(e.target.value))}
-                className="w-full accent-indigo-500"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* History Undo / Redo & Clear Group */}
-        <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-2xl border border-slate-800/80 shadow-inner">
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={undoStack.length === 0}
-            title="Undo"
-            className="p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 disabled:opacity-25 transition-all"
-          >
-            <Undo2 className="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRedo}
-            disabled={redoStack.length === 0}
-            title="Redo"
-            className="p-2.5 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 active:scale-95 disabled:opacity-25 transition-all"
-          >
-            <Redo2 className="w-5 h-5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { setShowClearConfirm(true); vibrate(15); }}
-            title="Clear Canvas"
-            className="p-2.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 active:scale-95 transition-all"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
         </div>
       </footer>
 
-      {/* Safety Clear Confirmation Modal */}
+      {/* Clear confirmation */}
       {showClearConfirm && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-5 shadow-2xl text-center space-y-4 animate-in fade-in zoom-in-95 duration-150">
-            <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/20">
-              <Trash2 className="w-6 h-6" />
+        <div className="scrim" onClick={() => setShowClearConfirm(false)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pad-clear-title"
+            onClick={(e) => e.stopPropagation()}
+            className="index-card sm:max-w-sm"
+          >
+            <div className="index-card-head">
+              <h3 id="pad-clear-title" className="index-card-title">Clear this page?</h3>
             </div>
-
-            <div>
-              <h3 className="text-base font-semibold text-slate-100">Clear Canvas?</h3>
-              <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                This will erase all strokes from this page on both this tablet and the paired desktop.
+            <div className="index-card-body space-y-5" style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}>
+              <p className="text-sm text-pencil leading-relaxed">
+                Every stroke on this page is erased here and on the paired computer. Undo won&apos;t bring it back.
               </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowClearConfirm(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmClear}
-                className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-md shadow-rose-600/30 transition-colors"
-              >
-                Clear All
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setShowClearConfirm(false)} className="btn btn-outline h-11">
+                  Keep page
+                </button>
+                <button type="button" onClick={handleConfirmClear} className="btn btn-danger h-11">
+                  Clear page
+                </button>
+              </div>
             </div>
           </div>
         </div>

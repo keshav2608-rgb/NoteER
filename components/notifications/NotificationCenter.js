@@ -1,19 +1,37 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import {
-  Bell,
-  CheckCheck,
-  BookOpen,
-  UserPlus,
-  Shield,
-  MessageSquare,
-  Clock
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bell, CheckCheck } from 'lucide-react';
+
+function formatWhen(value) {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${time}`;
+}
 
 export default function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const rootRef = useRef(null);
+
+  // Close on outside click / tap and on Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const onPointer = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) setIsOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointer);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointer);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isOpen]);
 
   const fetchNotifications = async () => {
     try {
@@ -38,7 +56,7 @@ export default function NotificationCenter() {
     try {
       await fetch('/api/notifications/all/read', { method: 'POST' });
       setUnreadCount(0);
-      setNotifications(notifications.map(n => ({ ...n, read_at: new Date().toISOString() })));
+      setNotifications((prev) => prev.map(n => ({ ...n, read_at: n.read_at || new Date().toISOString() })));
     } catch (err) {
       console.error('Failed to mark all read:', err);
     }
@@ -47,58 +65,48 @@ export default function NotificationCenter() {
   const handleMarkRead = async (id) => {
     try {
       await fetch(`/api/notifications/${id}/read`, { method: 'POST' });
-      setNotifications(notifications.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n));
-      setUnreadCount(Math.max(0, unreadCount - 1));
+      setNotifications((prev) => prev.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n));
+      setUnreadCount((c) => Math.max(0, c - 1));
     } catch (err) {
       console.error('Failed to mark read:', err);
     }
   };
 
   return (
-    <div className="relative">
-      {/* Bell Button */}
+    <div ref={rootRef} className="relative">
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+        className="icon-btn relative"
         title="Notifications"
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
+        aria-expanded={isOpen}
       >
-        <Bell className="w-5 h-5" />
+        <Bell className="w-[18px] h-[18px]" />
         {unreadCount > 0 && (
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-600 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
+          <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-correction rounded-full ring-2 ring-paper" />
         )}
       </button>
 
-      {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-sheet z-50 p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 text-slate-900 dark:text-slate-100">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Notifications</span>
-              {unreadCount > 0 && (
-                <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold rounded-full">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-
+        <div className="menu fixed left-3 right-3 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 z-50 p-0 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-rule">
+            <span className="text-sm font-semibold text-ink">
+              Notifications
+              {unreadCount > 0 && <span className="ml-2 text-pencil font-normal tabular-nums">{unreadCount} new</span>}
+            </span>
             {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={handleMarkAllRead}
-                className="flex items-center gap-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors"
-              >
-                <CheckCheck className="w-3.5 h-3.5" />
-                <span>Mark all as read</span>
+              <button type="button" onClick={handleMarkAllRead} className="btn btn-quiet btn-sm -mr-2">
+                <CheckCheck className="w-4 h-4" />
+                Mark all read
               </button>
             )}
           </div>
 
-          {/* List */}
-          <div className="flex flex-col gap-1.5 max-h-72 overflow-y-auto pr-1">
+          <div className="flex flex-col max-h-[min(22rem,60dvh)] overflow-y-auto p-1.5">
             {notifications.length === 0 ? (
-              <div className="py-8 text-center text-xs text-slate-400 dark:text-slate-500">
-                No notifications right now
+              <div className="py-10 px-4 text-center text-sm text-pencil">
+                You’re all caught up. Invites and shares will show up here.
               </div>
             ) : (
               notifications.map((n) => {
@@ -110,33 +118,25 @@ export default function NotificationCenter() {
                 }
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={n.id}
                     onClick={() => !n.read_at && handleMarkRead(n.id)}
-                    className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-colors ${
-                      n.read_at
-                        ? 'bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800/60 opacity-70'
-                        : 'bg-indigo-50/50 dark:bg-indigo-950/40 hover:bg-indigo-50 dark:hover:bg-indigo-950/60'
+                    className={`flex items-start gap-3 px-3 py-2.5 rounded-ctl text-left transition-colors hover:bg-paper-2 ${
+                      n.read_at ? 'cursor-default' : 'cursor-pointer'
                     }`}
                   >
-                    <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 shrink-0">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-slate-800 dark:text-slate-200 leading-snug">
-                        {payload.message || 'New notification update'}
-                      </p>
-                      <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400 dark:text-slate-500">
-                        <Clock className="w-3 h-3" />
-                        <span>{new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                    </div>
-
-                    {!n.read_at && (
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 mt-1.5 shrink-0"></span>
-                    )}
-                  </div>
+                    <span
+                      className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.read_at ? 'bg-transparent' : 'bg-ballpoint'}`}
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1 min-w-0">
+                      <span className={`block text-sm leading-snug ${n.read_at ? 'text-pencil' : 'text-ink'}`}>
+                        {payload.message || 'Something changed in one of your notebooks.'}
+                      </span>
+                      <span className="block mt-0.5 text-xs text-pencil">{formatWhen(n.created_at)}</span>
+                    </span>
+                  </button>
                 );
               })
             )}
