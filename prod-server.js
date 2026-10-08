@@ -1,12 +1,17 @@
 import http from 'http';
+import { EventEmitter } from 'events';
 import next from 'next';
 import { attachCollabWebSocket } from './collab-server/server.js';
 import { getLanIpAddress } from './lib/network.js';
 
 const dev = false;
 const port = parseInt(process.env.PORT || '3000', 10);
-const app = next({ dev, dir: process.cwd() });
+// Next.js lazily attaches its own 'upgrade' listener to the request's server,
+// which would also grab /collab-ws upgrades and corrupt the WebSocket stream.
+// Hand it an inert emitter instead and route upgrades explicitly below.
+const app = next({ dev, dir: process.cwd(), httpServer: new EventEmitter() });
 const handle = app.getRequestHandler();
+const handleNextUpgrade = app.getUpgradeHandler();
 
 console.log('✨ Initializing Collaborative Notebook Unified Production Server...');
 
@@ -17,6 +22,14 @@ app.prepare().then(() => {
 
   // Attach Collab WebSocket handler to /collab-ws on the same HTTP server
   attachCollabWebSocket(server);
+
+  // Forward all other upgrade requests to Next.js
+  server.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url, 'http://localhost');
+    if (!pathname.startsWith('/collab-ws')) {
+      handleNextUpgrade(req, socket, head);
+    }
+  });
 
   server.listen(port, '0.0.0.0', () => {
     const lanIp = getLanIpAddress();

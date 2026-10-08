@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CircleDot,
   Grid,
@@ -55,25 +55,29 @@ export default function PaperStyleModal({
   const [initialType, setInitialType] = useState(currentType || 'dotted');
   const [applyToAll, setApplyToAll] = useState(false);
 
+  // Snapshot the page's type only when the modal opens. Live previews change
+  // currentType while open, and must not overwrite the type to revert to.
   useEffect(() => {
     if (isOpen) {
       setSelectedType(currentType || 'dotted');
       setInitialType(currentType || 'dotted');
       setApplyToAll(false);
     }
-  }, [isOpen, currentType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
-  // Keyboard shortcut: Escape to close
+  // Keyboard shortcut: Escape to close (via ref so it always sees current state)
+  const cancelRef = useRef(null);
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        handleCancel();
+        cancelRef.current?.();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, initialType]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -91,6 +95,7 @@ export default function PaperStyleModal({
     }
     onClose();
   };
+  cancelRef.current = handleCancel;
 
   const handleCardClick = (typeId) => {
     setSelectedType(typeId);
