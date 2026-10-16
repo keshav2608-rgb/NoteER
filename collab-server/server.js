@@ -16,7 +16,7 @@ export function setupWssListeners(wss) {
     });
 
     // Handle messages
-    ws.on('message', (data) => {
+    ws.on('message', async (data) => {
       try {
         const message = JSON.parse(data.toString());
 
@@ -42,6 +42,16 @@ export function setupWssListeners(wss) {
             return ws.close(4003, 'Forbidden');
           }
 
+          let room;
+          try {
+            room = await roomManager.getOrCreateRoom(roomName);
+          } catch (err) {
+            console.error(`[Collab] Cannot open ${roomName}: ${err.message}`);
+            ws.send(JSON.stringify({ type: 'error', message: 'Storage temporarily unavailable, retrying' }));
+            return ws.close(1013, 'Storage unavailable');
+          }
+          if (ws.readyState !== 1) return;
+
           ws.authenticated = true;
           ws.user = {
             id: decoded.userId || decoded.sub,
@@ -52,7 +62,6 @@ export function setupWssListeners(wss) {
           };
           ws.isTablet = Boolean(isTablet);
 
-          const room = roomManager.getOrCreateRoom(roomName);
           ws.room = room;
           room.addClient(ws, ws.user, ws.isTablet);
 
@@ -151,6 +160,20 @@ const isDirectRun = process.argv[1] && (
 );
 
 if (isDirectRun) {
+  // Keep the process alive through stray async errors and flush drawings on shutdown.
+  process.on('unhandledRejection', (err) => console.error('[Process] Unhandled rejection:', err));
+  process.on('uncaughtException', (err) => console.error('[Process] Uncaught exception:', err));
+  for (const sig of ['SIGTERM', 'SIGINT']) {
+    process.on(sig, async () => {
+      console.log(`[Process] ${sig} received, flushing rooms...`);
+      try {
+        await Promise.race([roomManager.flushAll(), new Promise((r) => setTimeout(r, 8000))]);
+      } finally {
+        process.exit(0);
+      }
+    });
+  }
+
   const PORT = parseInt(process.env.COLLAB_PORT || process.env.PORT || '1234', 10);
   const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' });

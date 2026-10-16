@@ -11,21 +11,69 @@ class Room {
       textBlocks: []
     };
     this.saveTimeout = null;
+    this.dirty = false;
+    this.saving = null;
+    this.loaded = false;
+    this.ready = this.load();
+  }
 
-    // Load persisted state if exists
-    const persisted = loadRoomState(roomName);
-    if (persisted) {
+  // Load persisted state. If the database is unreachable the room refuses to open
+  // (rather than starting empty and later overwriting real drawings with a blank canvas).
+  async load() {
+    const result = await loadRoomState(this.roomName);
+    if (!result.ok) {
+      throw new Error(`Database unavailable while loading ${this.roomName}`);
+    }
+    if (result.state) {
       try {
-        const parsed = JSON.parse(persisted);
+        const parsed = JSON.parse(result.state);
         this.documentState = {
           strokes: parsed.strokes || [],
           shapes: parsed.shapes || [],
           textBlocks: Array.isArray(parsed.textBlocks) ? parsed.textBlocks.filter(t => !t.deleted) : []
         };
       } catch (err) {
-        console.error(`Failed to parse persisted state for ${roomName}:`, err.message);
+        // Corrupt snapshot: do not start empty and overwrite it.
+        throw new Error(`Failed to parse persisted state for ${this.roomName}: ${err.message}`);
       }
     }
+    this.loaded = true;
+  }
+
+  scheduleSave() {
+    this.dirty = true;
+    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+    this.saveTimeout = setTimeout(() => {
+      this.saveTimeout = null;
+      this.flush();
+    }, 500);
+  }
+
+  // Persist now. Serialized so saves never interleave; on failure the room stays dirty
+  // and is retried, so a temporary DB outage does not lose drawings held in memory.
+  flush() {
+    if (this.saving) return this.saving;
+    this.saving = (async () => {
+      try {
+        while (this.dirty && this.loaded) {
+          this.dirty = false;
+          const ok = await saveRoomState(this.roomName, JSON.stringify(this.documentState));
+          if (!ok) {
+            this.dirty = true;
+            if (!this.saveTimeout) {
+              this.saveTimeout = setTimeout(() => {
+                this.saveTimeout = null;
+                this.flush();
+              }, 5000);
+            }
+            break;
+          }
+        }
+      } finally {
+        this.saving = null;
+      }
+    })();
+    return this.saving;
   }
 
   addClient(ws, user, isTablet = false) {
@@ -57,6 +105,14 @@ class Room {
     this.awareness.delete(ws.clientId);
     this.broadcastAwareness();
     this.checkDesktopStatus();
+    if (this.clients.size === 0) {
+      // Last client left: persist immediately instead of waiting for the debounce
+      if (this.saveTimeout) {
+        clearTimeout(this.saveTimeout);
+        this.saveTimeout = null;
+      }
+      this.flush();
+    }
   }
 
   checkDesktopStatus() {
@@ -155,11 +211,8 @@ class Room {
         clientId
       });
 
-      // Debounce durable save to disk (Section 9: sampling/batching persistence)
-      if (this.saveTimeout) clearTimeout(this.saveTimeout);
-      this.saveTimeout = setTimeout(() => {
-        saveRoomState(this.roomName, JSON.stringify(this.documentState));
-      }, 500);
+      // Debounced durable save (sampling/batching persistence)
+      this.scheduleSave();
     }
   }
 
@@ -191,21 +244,35 @@ class RoomManager {
     this.rooms = new Map();
   }
 
-  getOrCreateRoom(roomName) {
-    if (!this.rooms.has(roomName)) {
-      this.rooms.set(roomName, new Room(roomName));
+  // Resolves once the room's persisted state is loaded. Rejects (and forgets the room)
+  // if the database is unavailable so the next join retries the load.
+  async getOrCreateRoom(roomName) {
+    let room = this.rooms.get(roomName);
+    if (!room) {
+      room = new Room(roomName);
+      this.rooms.set(roomName, room);
     }
-    return this.rooms.get(roomName);
+    try {
+      await room.ready;
+    } catch (err) {
+      if (this.rooms.get(roomName) === room) this.rooms.delete(roomName);
+      throw err;
+    }
+    return room;
   }
 
-  cleanupEmptyRooms() {
+  async cleanupEmptyRooms() {
     for (const [name, room] of this.rooms.entries()) {
       if (room.clients.size === 0) {
-        // Save state before evicting from memory
-        saveRoomState(room.roomName, JSON.stringify(room.documentState));
-        this.rooms.delete(name);
+        await room.flush();
+        if (!room.dirty && room.clients.size === 0) this.rooms.delete(name);
       }
     }
+  }
+
+  // Flush every dirty room (used on shutdown so SIGTERM from a redeploy doesn't drop the last 500ms)
+  async flushAll() {
+    await Promise.all(Array.from(this.rooms.values()).map((room) => room.flush()));
   }
 }
 

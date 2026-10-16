@@ -2,7 +2,22 @@ import http from 'http';
 import { EventEmitter } from 'events';
 import next from 'next';
 import { attachCollabWebSocket } from './collab-server/server.js';
+import { roomManager } from './collab-server/rooms.js';
 import { getLanIpAddress } from './lib/network.js';
+
+// Keep the process alive through stray async errors and flush drawings on shutdown.
+process.on('unhandledRejection', (err) => console.error('[Process] Unhandled rejection:', err));
+process.on('uncaughtException', (err) => console.error('[Process] Uncaught exception:', err));
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, async () => {
+    console.log(`[Process] ${sig} received, flushing rooms...`);
+    try {
+      await Promise.race([roomManager.flushAll(), new Promise((r) => setTimeout(r, 8000))]);
+    } finally {
+      process.exit(0);
+    }
+  });
+}
 
 const dev = false;
 const port = parseInt(process.env.PORT || '3000', 10);
